@@ -1,0 +1,73 @@
+name: Slydo CI
+on: [push, pull_request]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[lint]"
+      - name: Ruff check
+        run: ruff check .
+      - name: Ruff format check
+        run: ruff format --check .
+      - name: MyPy type check
+        run: mypy app/
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[dev]"
+          pip install python-pptx pdf2image Pillow
+      - name: Unit tests (Phase 1 & 2)
+        run: pytest tests/test_etl_phase1.py tests/test_etl_phase2.py tests/test_recommend.py tests/test_etl_phase3_4.py tests/test_export.py tests/test_version_manager.py -v --tb=short
+
+  integration:
+    runs-on: ubuntu-latest
+    if: false  # ⬜ 暂时禁用，等待：1) GitHub runner 可访问本地服务 2) 添加 test DB 初始化脚本
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: slydo_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install ".[dev]"
+      - name: Init test DB schema
+        env:
+          DATABASE_URL: postgresql://postgres:***@localhost:5432/slydo_test
+        run: |
+          pip install alembic
+          alembic upgrade head
+      - name: Start uvicorn & run integration tests
+        env:
+          DATABASE_URL: postgresql://postgres:***@localhost:5432/slydo_test
+          TEST_PORT: 18011
+          AUTO_START_SERVER: "1"
+        run: |
+          pytest tests/test_api_integration.py -v --tb=short --timeout=120

@@ -1,0 +1,59 @@
+[project]
+name = "slydo-backend"
+version = "0.0.1"
+description = "企业级智能 PPT 知识库系统 — 后端 API"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "asyncpg>=0.30.0",
+    "sqlalchemy[asyncio]>=2.0",
+    "alembic>=1.14.0",
+    "qdrant-client>=1.12.0",
+    "python-pptx>=1.0.0",
+    "pdf2image>=1.17.0",
+    "Pillow>=11.0.0",
+    "httpx>=0.28.0",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "watchdog>=6.0.0",
+    "python-multipart>=0.0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=6.0",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+lint = [
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+norecursedirs = [".*", "_*", "venv", ".venv", "*.egg-info", "dist", "build"]
+markers = [
+    "integration: 集成测试（依赖真实环境）",
+    "e2e: 端到端测试（依赖完整环境）",
+]

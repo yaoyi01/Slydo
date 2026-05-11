@@ -110,7 +110,11 @@ namespace SlydoAddIn.Services
         public async Task<string> ExportSlideAsync(string slideId, int targetIndex)
         {
             var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
-            var response = await _httpClient.GetAsync(url);
+            // 导出文件可能较大（~20MB），单独使用较长超时（120秒）
+            using var exportClient = new HttpClient();
+            exportClient.BaseAddress = _httpClient.BaseAddress;
+            exportClient.Timeout = TimeSpan.FromSeconds(120);
+            var response = await exportClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var tempPath = Path.Combine(Path.GetTempPath(), $"slydo_export_{Guid.NewGuid():N}.pptx");
