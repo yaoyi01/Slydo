@@ -12,6 +12,7 @@ env/
 # IDE
 .vscode/
 .idea/
+.vs/
 *.swp
 *.swo
 
@@ -41,3 +42,19 @@ qdrant/
 
 # Windows temp files
 ~$*
+
+# VS Publish artifacts
+publish/
+bin/
+obj/
+*.suo
+*.user
+*.pfx
+.vs/
+.hermes/
+slydo-addin/.hermes/
+slydo-addin/SlydoAddIn/*.pfx
+
+# Published articles
+公众号文章-*.md
+小红书笔记-*.md
