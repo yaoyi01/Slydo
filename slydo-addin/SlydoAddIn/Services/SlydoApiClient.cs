@@ -111,18 +111,26 @@ namespace SlydoAddIn.Services
         {
             var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
             // 导出文件可能较大（~20MB），单独使用较长超时（120秒）
-            using var exportClient = new HttpClient();
-            exportClient.BaseAddress = _httpClient.BaseAddress;
-            exportClient.Timeout = TimeSpan.FromSeconds(120);
-            var response = await exportClient.GetAsync(url);
-            response.EnsureSuccessStatusCode();
+            HttpClient exportClient = null;
+            try
+            {
+                exportClient = new HttpClient();
+                exportClient.BaseAddress = _httpClient.BaseAddress;
+                exportClient.Timeout = TimeSpan.FromSeconds(120);
+                var response = await exportClient.GetAsync(url);
+                response.EnsureSuccessStatusCode();
 
             var tempPath = Path.Combine(Path.GetTempPath(), $"slydo_export_{Guid.NewGuid():N}.pptx");
-            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
             {
                 await response.Content.CopyToAsync(fs);
             }
-            return tempPath;
+                return tempPath;
+            }
+            finally
+            {
+                exportClient?.Dispose();
+            }
         }
 
         /// <summary>
