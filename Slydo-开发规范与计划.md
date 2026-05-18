@@ -1,14 +1,15 @@
 # Slydo 开发规范与开发计划
 
-> 基于《开发设计说明书-v3.1.md》V3.1.1 版本整理
-> 2026-05-06
+> 基于《开发设计说明书-v3.1.md》V3.2.0 版本整理
+> 2026-05-18
 
 ---
 
-> **上次更新：** 2026-05-10（C3 稳定化完成 / 推荐结果改为 20 条）
+> **上次更新：** 2026-05-18（Phase E 用户认证开始）
 > **当前测试状态：** 82 单元测试 ✅ / 23 API 集成测试 ✅ / 0 失败
 > **当前数据：** 33 文档 / 1265 slides / 1265 QS 已计算 / 0 页金牌标记
 > **推荐配置：** TOP_N=20（默认返回 20 条推荐）
+> **Phase E 状态：** E-1→E-5 进行中（JWT 用户认证 + 管理页面 + VSTO 登录）
 
 ## 第一部分：开发规范
 
@@ -615,13 +616,70 @@ jobs:
 
 | 任务 | 周期 | 依赖 |
 |:---|:---|:---|
-| SSO 登录（LDAP/OAuth） | 10天 | C1 |
-| 部门级数据隔离 | 7天 | C1 |
-| 多用户并发 | 5天 | C1 |
-| Docker 容器化 | 5天 | A1 |
-| 性能基准测试 + 优化 | 7天 | B1 |
-| 管理后台（页面管理/Qdrant 管理） | 10天 | A4+B1 |
-| 用户手册 + 管理员文档 | 5天 | 全部完成 |
+| E-1 用户认证后端 | 3天 | C1 |
+| E-2 管理员用户管理路由 | 2天 | E-1 |
+| E-3 HTML 管理页面 | 2天 | E-2 |
+| E-4 API 认证保护 | 1天 | E-1 |
+| E-5 VSTO 插件登录 | 3天 | E-1 |
+| E-6 部门级数据隔离 | 7天 | E-4 |
+| E-7 Docker 容器化 | 5天 | A1 |
+
+#### E-1 用户认证后端
+
+**文件：**
+- 创建: `slydo-backend/app/models/user.py` — User ORM 模型（id/username/password_hash/display_name/role/is_active/timestamps）
+- 创建: `slydo-backend/app/schemas/auth.py` — LoginRequest/TokenResponse/RefreshRequest/UserCreate/UserOut/UserUpdate
+- 创建: `slydo-backend/app/utils/auth.py` — bcrypt 密码哈希 + JWT 签发/验证 + Token 解码
+- 创建: `slydo-backend/app/routers/auth.py` — POST /api/auth/login, POST /api/auth/refresh, GET /api/auth/me
+- 创建: `slydo-backend/app/init_admin.py` — 首次启动自动创建默认管理员 admin/admin123456
+- 修改: `slydo-backend/app/config.py` — 添加 jwt_secret_key 字段
+- 修改: `slydo-backend/app/models/__init__.py` — 导出 User
+- 修改: `slydo-backend/app/main.py` — 注册 auth.router, 调用 ensure_admin()
+- 修改: `.env` — 添加 JWT_SECRET_KEY
+
+**验收条件：** POST /api/auth/login 返回 Token；POST /api/auth/refresh 刷新成功；GET /api/auth/me 返回当前用户
+
+#### E-2 管理员用户管理路由
+
+**文件：**
+- 创建: `slydo-backend/app/routers/admin_users.py` — POST/GET/PATCH /api/admin/users
+- 修改: `slydo-backend/app/main.py` — 注册 admin_users.router
+
+**验收条件：** 管理员可创建用户（唯一性校验）、列表查看（按用户名搜索）、编辑（修改角色/重置密码/禁用账号）
+
+#### E-3 HTML 管理页面
+
+**文件：**
+- 创建: `slydo-backend/app/static/admin/index.html` — 登录表单 + 用户列表表格 + 创建用户表单 + 编辑/禁用操作（所有操作用 fetch API + Bearer Token）
+- 修改: `slydo-backend/app/main.py` — 挂载 `/admin` 静态文件路由
+
+**验收条件：** 浏览器打开 /admin → 管理员登录 → 可创建/查看/编辑/禁用用户（无需重启后端）
+
+#### E-4 API 认证保护
+
+**文件：**
+- 修改: `slydo-backend/app/routers/recommend.py` — 添加 dependencies=[Depends(get_current_user)]
+- 修改: `slydo-backend/app/routers/export.py` — 同上
+- 修改: `slydo-backend/app/routers/deck.py` — 同上
+- 修改: `slydo-backend/app/routers/slide.py` — 同上
+- 修改: `slydo-backend/app/routers/usage.py` — 同上
+- 修改: `slydo-backend/app/routers/thumbnail.py` — 同上
+
+**验收条件：** 推荐/搜索/导出等 API 未带 Token 返回 401；带有效 Token 正常工作
+
+#### E-5 VSTO 插件登录
+
+**文件：**
+- 修改: `slydo-addin/SlydoAddIn/Services/SlydoApiClient.cs` — 添加 AuthToken 属性、SetToken() 方法、自动在请求头带 Authorization；添加 LoginAsync()/RefreshTokenAsync() 方法；失败时清除 Token
+- 创建: `slydo-addin/SlydoAddIn/LoginForm.cs` + `LoginForm.Designer.cs` — WinForms 登录窗口（用户名/密码/登录按钮/状态提示）
+- 修改: `slydo-addin/SlydoAddIn/ThisAddIn.cs` — 启动时检查 Token 状态，未登录展示 LoginForm，登录成功后再初始化 TaskPane
+- 修改: `slydo-addin/SlydoAddIn/Services/SlydoModels.cs` — 添加 TokenResponse/LoginRequest 模型类
+
+**验收条件：** PPT 中打开 Slydo 插件 → 弹出登录窗口 → 输入正确账号密码 → 正常使用；未登录时推荐请求返回 401 不弹窗
+
+#### E-6 部门级数据隔离（后续迭代）
+
+#### E-7 Docker 容器化（后续迭代）
 
 ---
 
