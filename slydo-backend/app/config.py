@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     app_name: str = "Slydo"
     debug: bool = False
 
+    # JWT
+    jwt_secret_key: str = ""
+
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
 

@@ -18,6 +18,12 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时
     print(f"[Slydo] 启动: {settings.app_name} (debug={settings.debug})")
+    # 初始化默认管理员
+    from app.init_admin import ensure_admin
+    try:
+        await ensure_admin()
+    except Exception as e:
+        print(f"[Slydo] 初始化管理员失败（可能表未就绪）: {e}")
     yield
     # 关闭时
     print("[Slydo] 关闭")
@@ -75,7 +81,7 @@ async def health():
 
 # ─── 路由注册 ──────────────────────────────────────────────
 
-from app.routers import version, recommend, export, deck, slide, thumbnail, monitor, usage, usage_dashboard
+from app.routers import version, recommend, export, deck, slide, thumbnail, monitor, usage, usage_dashboard, auth
 app.include_router(version.router)
 app.include_router(recommend.router)
 app.include_router(export.router)
@@ -86,6 +92,7 @@ app.include_router(thumbnail.router)
 app.include_router(monitor.router)  # 监控仪表盘
 app.include_router(usage.router)  # 使用统计 API
 app.include_router(usage_dashboard.router)  # 使用统计面板
+app.include_router(auth.router)  # 用户认证
 
 # ─── 静态文件服务（缩略图路径） ───────────────────────────
 

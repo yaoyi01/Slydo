@@ -4,5 +4,6 @@ from app.models.deck_version import DeckVersion
 from app.models.slide import Slide
 from app.models.tag import Tag, SlideTag
 from app.models.usage_log import UsageLog
+from app.models.user import User
 
-__all__ = ["Deck", "DeckVersion", "Slide", "Tag", "SlideTag", "UsageLog"]
+__all__ = ["Deck", "DeckVersion", "Slide", "Tag", "SlideTag", "UsageLog", "User"]
