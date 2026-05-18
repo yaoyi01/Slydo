@@ -31,12 +31,60 @@ async def api_recommend(
         context_keywords=context_keywords,
         top_n=top_n,
     )
+
+    # 异步记录搜索行为
+    record_usage(context_keywords, results)
+
     return {
         "status": "ok",
         "query": {"title": title, "keywords": keywords},
         "count": len(results),
         "results": results,
     }
+
+
+def record_usage(query: str, results: list[dict]) -> None:
+    """后台记录搜索日志（不阻塞推荐响应）"""
+    import asyncio
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    async def _do():
+        from app.database import async_session_factory
+        from sqlalchemy import text
+        try:
+            async with async_session_factory() as session:
+                # 记录搜索行为（不关联具体 slide）
+                await session.execute(
+                    text("""
+                        INSERT INTO usage_log (slide_id, action, metadata)
+                        VALUES (NULL, 'search',
+                                jsonb_build_object('query', :query))
+                    """),
+                    {"query": query or ""},
+                )
+                # 对推荐结果中的每个页面记录 view 行为
+                for r in results[:5]:  # 只记录点击结果的前5个（浏览视图）
+                    sid = r.get("slide_id", "")
+                    if sid and sid != "00000000-0000-0000-0000-000000000000":
+                        await session.execute(
+                            text("INSERT INTO usage_log (slide_id, action) VALUES (CAST(:sid AS uuid), 'view')"),
+                            {"sid": sid},
+                        )
+                        # 更新 usage_count
+                        await session.execute(
+                            text("UPDATE slides SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = CAST(:sid AS uuid)"),
+                            {"sid": sid},
+                        )
+                await session.commit()
+        except Exception:
+            pass
+
+    try:
+        asyncio.create_task(_do())
+    except Exception:
+        pass
 
 
 @router.get("/recommend/outline")

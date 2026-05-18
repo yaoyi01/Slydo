@@ -226,5 +226,37 @@ namespace SlydoAddIn.Services
         {
             return _baseUrl;
         }
+
+        // ═══════════════════════════════════════════════════════════
+        // 使用统计 — 记录搜索/浏览/导入行为
+        // ═══════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// 记录搜索行为（异步，不阻塞主流程）
+        /// </summary>
+        public async void LogSearchAsync(string query)
+        {
+            try
+            {
+                var url = $"/api/usage/log?action=search&query={Uri.EscapeDataString(query ?? "")}";
+                // 用 GET 方式触发（避免 POST 的 CORS 问题）
+                await _httpClient.GetStringAsync(url);
+            }
+            catch { /* 记录失败不阻塞主流程 */ }
+        }
+
+        /// <summary>
+        /// 记录页面浏览/导入行为（异步，不阻塞主流程）
+        /// </summary>
+        public async void LogUsageAsync(string slideId, string action)
+        {
+            if (string.IsNullOrEmpty(slideId)) return;
+            try
+            {
+                var url = $"/api/usage/log?action={Uri.EscapeDataString(action)}&slide_id={Uri.EscapeDataString(slideId)}";
+                await _httpClient.GetStringAsync(url);
+            }
+            catch { /* 记录失败不阻塞主流程 */ }
+        }
     }
 }

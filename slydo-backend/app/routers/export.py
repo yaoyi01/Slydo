@@ -29,13 +29,19 @@ async def api_export_slide(slide_id: str = ""):
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # 记录使用日志（用于 QS 评分）
+    # 记录使用日志并更新 usage_count
     try:
         from app.database import async_session_factory
         from sqlalchemy import text
         async with async_session_factory() as session:
+            # 插入使用日志
             await session.execute(
                 text("INSERT INTO usage_log (slide_id, action) VALUES (:sid, 'import')"),
+                {"sid": slide_id},
+            )
+            # 更新 slide.usage_count（增量 +1）
+            await session.execute(
+                text("UPDATE slides SET usage_count = COALESCE(usage_count, 0) + 1 WHERE id = CAST(:sid AS uuid)"),
                 {"sid": slide_id},
             )
             await session.commit()

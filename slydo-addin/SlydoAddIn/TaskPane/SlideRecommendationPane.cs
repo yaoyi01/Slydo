@@ -63,6 +63,10 @@ namespace SlydoAddIn.TaskPane
             try
             {
                 var tempFile = await _apiClient.ExportSlideAsync(slide.SlideId, -1);
+
+                // 记录导入行为
+                _apiClient.LogUsageAsync(slide.SlideId, "import");
+
                 var pptApp = Globals.ThisAddIn.Application;
                 var activePres = pptApp.ActivePresentation;
 

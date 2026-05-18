@@ -135,6 +135,9 @@ namespace SlydoAddIn.TaskPane
                 TriggerRecommendation();
             else
                 UpdateCurrentTitle(query);
+
+            // 记录搜索行为
+            _apiClient.LogSearchAsync(query);
         }
 
         /// <summary>

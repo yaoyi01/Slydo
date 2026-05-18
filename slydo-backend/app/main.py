@@ -75,7 +75,7 @@ async def health():
 
 # ─── 路由注册 ──────────────────────────────────────────────
 
-from app.routers import version, recommend, export, deck, slide, thumbnail, monitor
+from app.routers import version, recommend, export, deck, slide, thumbnail, monitor, usage, usage_dashboard
 app.include_router(version.router)
 app.include_router(recommend.router)
 app.include_router(export.router)
@@ -84,6 +84,8 @@ app.include_router(deck.router)
 app.include_router(slide.router)
 app.include_router(thumbnail.router)
 app.include_router(monitor.router)  # 监控仪表盘
+app.include_router(usage.router)  # 使用统计 API
+app.include_router(usage_dashboard.router)  # 使用统计面板
 
 # ─── 静态文件服务（缩略图路径） ───────────────────────────
 
