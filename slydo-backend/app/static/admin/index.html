@@ -93,7 +93,7 @@ tr:hover td { background: #f0f5ff; }
       <div class="tab" data-tab="tab-users" onclick="switchTab('tab-users')">👤 用户管理</div>
       <div class="tab" data-tab="tab-decks" onclick="switchTab('tab-decks')">📁 文件管理</div>
       <div class="tab" data-tab="tab-dashboard" onclick="loadDashboard();switchTab('tab-dashboard')">📊 监控面板</div>
-      <div class="tab" data-tab="tab-usage" onclick="switchTab('tab-usage')">📈 使用统计</div>
+      <div class="tab" data-tab="tab-usage" onclick="loadUsageStats();switchTab('tab-usage')">📈 使用统计</div>
     </div>
 
     <!-- Tab 1: 文件入库 -->
@@ -160,18 +160,57 @@ tr:hover td { background: #f0f5ff; }
       <div class="stats-grid" id="stats-grid">
         <div class="stat-card"><div class="num">-</div><div class="label">文档总数</div></div>
         <div class="stat-card"><div class="num">-</div><div class="label">页面总数</div></div>
-        <div class="stat-card"><div class="num">-</div><div class="label">已向量化</div></div>
-        <div class="stat-card"><div class="num">-</div><div class="label">金牌页面</div></div>
+        <div class="stat-card"><div class="num">-</div><div class="label">Wiki 文件</div></div>
+        <div class="stat-card"><div class="num">-</div><div class="label">缩略图</div></div>
       </div>
-      <div style="overflow:hidden;height:800px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-        <iframe src="/dashboard" style="width:100%;height:100%;border:none;overflow:hidden" scrolling="no" onload="this.style.height=(this.contentWindow.document.documentElement.scrollHeight||800)+'px';this.parentElement.style.height='auto'"></iframe>
+      <div class="card">
+        <h2>磁盘用量</h2>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="disk-grid">
+          <div class="stat-card"><div class="num">-</div><div class="label">PG 数据库</div></div>
+          <div class="stat-card"><div class="num">-</div><div class="label">Qdrant</div></div>
+          <div class="stat-card"><div class="num">-</div><div class="label">Wiki</div></div>
+          <div class="stat-card"><div class="num">-</div><div class="label">缩略图</div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>各文档入库状态</h2>
+        <table>
+          <thead>
+            <tr><th>文档名称</th><th style="text-align:center">页面数</th><th style="text-align:center">版本</th><th style="text-align:center">视觉</th><th style="text-align:center">缩略图</th><th style="text-align:center">Wiki</th></tr>
+          </thead>
+          <tbody id="dashboard-deck-table"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>模块健康状态</h2>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px" id="health-grid"></div>
       </div>
     </div>
 
     <!-- Tab 5: 使用统计 -->
     <div id="tab-usage" class="tab-content">
-      <div style="overflow:hidden;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-        <iframe src="/usage-dashboard" style="width:100%;height:100%;border:none;overflow:hidden" scrolling="no" onload="this.style.height=(this.contentWindow.document.documentElement.scrollHeight||800)+'px';this.parentElement.style.height='auto'"></iframe>
+      <div class="stats-grid" id="usage-stats-grid">
+        <div class="stat-card"><div class="num">-</div><div class="label">今日搜索</div></div>
+        <div class="stat-card"><div class="num">-</div><div class="label">今日导入</div></div>
+        <div class="stat-card"><div class="num">-</div><div class="label">总搜索次数</div></div>
+        <div class="stat-card"><div class="num">-</div><div class="label">总导入次数</div></div>
+      </div>
+      <div class="card">
+        <h2>最常被导入的页面 Top 20</h2>
+        <table>
+          <thead><tr><th>#</th><th>文档</th><th>页面标题</th><th>导入次数</th></tr></thead>
+          <tbody id="usage-top-table"></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <h2>所有文档使用情况</h2>
+        <div class="form-group" style="display:flex;gap:8px">
+          <input type="text" id="usage-search" placeholder="搜索..." style="flex:1" oninput="loadUsageStats()">
+        </div>
+        <table>
+          <thead><tr><th>文档</th><th>页面数</th><th>总使用</th><th>被使用页</th><th>覆盖率</th></tr></thead>
+          <tbody id="usage-deck-table"></tbody>
+        </table>
       </div>
     </div>
 
@@ -372,14 +411,124 @@ async function deleteDeck(id, title) {
 async function loadDashboard() {
   try {
     const stats = await api('GET', '/api/monitor/stats');
-    const grid = document.getElementById('stats-grid');
-    grid.innerHTML = `
-      <div class="stat-card"><div class="num">${stats.decks||0}</div><div class="label">文档总数</div></div>
-      <div class="stat-card"><div class="num">${stats.slides||0}</div><div class="label">页面总数</div></div>
-      <div class="stat-card"><div class="num">${stats.vectorized||0}</div><div class="label">已向量化</div></div>
-      <div class="stat-card"><div class="num">${stats.official||0}</div><div class="label">金牌页面</div></div>
+    const data = stats.data || stats;
+
+    // 统计卡片
+    document.getElementById('stats-grid').innerHTML = `
+      <div class="stat-card"><div class="num">${data.deck_count||0}</div><div class="label">📁 文档总数</div></div>
+      <div class="stat-card"><div class="num">${data.slide_count||0}</div><div class="label">📄 页面总数</div></div>
+      <div class="stat-card"><div class="num">${data.wiki_files||0}</div><div class="label">📝 Wiki 文件</div></div>
+      <div class="stat-card"><div class="num">${data.thumbnail_count||0}</div><div class="label">🖼️ 缩略图</div></div>
     `;
-  } catch(e) {}
+
+    // 磁盘用量
+    document.getElementById('disk-grid').innerHTML = `
+      <div class="stat-card"><div class="num">${data.disk_pg||'-'}</div><div class="label">💾 PG 数据库</div></div>
+      <div class="stat-card"><div class="num">${data.disk_qdrant||'-'}</div><div class="label">💾 Qdrant</div></div>
+      <div class="stat-card"><div class="num">${data.disk_wiki||'-'}</div><div class="label">💾 Wiki</div></div>
+      <div class="stat-card"><div class="num">${data.disk_thumbnails||'-'}</div><div class="label">💾 缩略图</div></div>
+    `;
+
+    // 文档入库状态表
+    const deckTbody = document.getElementById('dashboard-deck-table');
+    const decks = data.decks || [];
+    if (decks.length === 0) {
+      deckTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999">暂无数据</td></tr>';
+    } else {
+      deckTbody.innerHTML = decks.map(d => {
+        const visionPct = d.vision_ready ? 100 : (d.vision_progress || 0);
+        const thumbPct = d.thumb_ready ? 100 : (d.thumb_progress || 0);
+        return `<tr>
+          <td>${esc(d.title||'未命名')}</td>
+          <td style="text-align:center">${d.slide_count||0}</td>
+          <td style="text-align:center">v${d.version||1}</td>
+          <td style="text-align:center"><span class="badge ${visionPct>=100?'badge-active':'badge-disabled'}">${visionPct}%</span></td>
+          <td style="text-align:center"><span class="badge ${thumbPct>=100?'badge-active':'badge-disabled'}">${thumbPct}%</span></td>
+          <td style="text-align:center"><span class="badge ${d.wiki_ready?'badge-active':'badge-disabled'}">${d.wiki_ready?'✅':'❌'}</span></td>
+        </tr>`;
+      }).join('');
+    }
+
+    // 模块健康状态
+    const healthGrid = document.getElementById('health-grid');
+    const h = data.health || {};
+    const modules = [
+      {name:'PostgreSQL', icon:'🗄️', ok:data.pg_connected!==false, info: `库: ${data.deck_count||0} 文档`},
+      {name:'Qdrant 向量库', icon:'🔍', ok:data.qdrant_points>0, info: `${data.qdrant_points||0} 向量点`},
+      {name:'缩略图服务', icon:'🖼️', ok:data.thumbnail_count>0, info: `${data.thumbnail_count||0} 文件`},
+    ];
+    healthGrid.innerHTML = modules.map(m => `
+      <div class="stat-card">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <span style="font-size:20px">${m.icon}</span>
+          <span style="font-weight:600">${m.name}</span>
+          <span style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:${m.ok?'#52c41a':'#ff4d4f'};${m.ok?'box-shadow:0 0 6px #52c41a':''}"></span>
+        </div>
+        <div style="font-size:12px;color:#999">${m.info}</div>
+      </div>
+    `).join('');
+  } catch(e) { console.error('Dashboard load error:', e); }
+}
+
+// ═══ 使用统计 ═══
+
+async function loadUsageStats() {
+  try {
+    const q = document.getElementById('usage-search').value;
+    const resp = await api('GET', `/api/usage/stats?days=30&limit=20&action=${encodeURIComponent(q)}`);
+    const data = resp.data || resp;
+
+    const overview = data.overview || {};
+    const byAction = data.by_action || [];
+    const searchCount = byAction.find(a => a.action === 'search');
+    const importCount = byAction.find(a => a.action === 'import');
+    const viewCount = byAction.find(a => a.action === 'view');
+
+    // 统计汇总
+    document.getElementById('usage-stats-grid').innerHTML = `
+      <div class="stat-card"><div class="num">${searchCount?.count||0}</div><div class="label">🔍 近30天搜索</div></div>
+      <div class="stat-card"><div class="num">${importCount?.count||0}</div><div class="label">📥 近30天导入</div></div>
+      <div class="stat-card"><div class="num">${overview.unique_slides||0}</div><div class="label">📄 涉及页面数</div></div>
+      <div class="stat-card"><div class="num">${viewCount?.count||0}</div><div class="label">👁️ 近30天浏览</div></div>
+    `;
+
+    // Top 页面
+    const topSlides = data.top_slides || [];
+    const topTbody = document.getElementById('usage-top-table');
+    if (topSlides.length === 0) {
+      topTbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">暂无数据</td></tr>';
+    } else {
+      topTbody.innerHTML = topSlides.map((s,i) => `
+        <tr>
+          <td>${i+1}</td>
+          <td>${esc(s.deck_title||'-')}</td>
+          <td>${esc(s.title||'无标题')}</td>
+          <td><strong>${s.usage_count||0}</strong></td>
+        </tr>
+      `).join('');
+    }
+
+    // 文档使用
+    const topDecks = data.top_decks || [];
+    const deckTbody = document.getElementById('usage-deck-table');
+    if (topDecks.length === 0) {
+      deckTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#999">暂无数据</td></tr>';
+    } else {
+      deckTbody.innerHTML = topDecks.map(d => `
+        <tr>
+          <td>${esc(d.title||'未命名')}</td>
+          <td>${d.slide_count||0}</td>
+          <td><strong>${d.total_usage||0}</strong></td>
+          <td>${d.used_slides||0}</td>
+          <td>${d.coverage_pct||0}%</td>
+        </tr>
+      `).join('');
+    }
+  } catch(e) {
+    document.getElementById('usage-stats-grid').innerHTML =
+      '<div class="stat-card" style="grid-column:1/-1;color:#999">使用统计数据暂不可用</div>';
+    console.error('Usage stats error:', e);
+  }
 }
 
 // ═══ 启动 ═══
