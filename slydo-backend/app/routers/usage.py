@@ -11,14 +11,15 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import text
 
+from app.routers.auth import get_current_user
 from app.database import async_session_factory
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/usage", tags=["使用统计"])
+router = APIRouter(prefix="/api/usage", tags=["使用统计"], dependencies=[Depends(get_current_user)])
 
 
 # ═══════════════════════════════════════════════════════════

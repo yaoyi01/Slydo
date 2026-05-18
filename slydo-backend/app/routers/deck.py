@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.orm import joinedload
 
@@ -15,8 +15,9 @@ from app.database import async_session_factory
 from app.models.deck import Deck
 from app.models.slide import Slide
 from app.qdrant import COLLECTION_NAME, get_qdrant
+from app.routers.auth import get_current_user
 
-router = APIRouter(prefix="/api/decks", tags=["文档管理"])
+router = APIRouter(prefix="/api/decks", tags=["文档管理"], dependencies=[Depends(get_current_user)])
 
 
 def _slide_to_dict(slide: Slide) -> dict:

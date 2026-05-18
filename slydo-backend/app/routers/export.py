@@ -5,15 +5,16 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
+from app.routers.auth import get_current_user
 from app.services.export import export_single_slide
 
-router = APIRouter(prefix="/api/slides", tags=["单页导出"])
+router = APIRouter(prefix="/api/slides", tags=["单页导出"], dependencies=[Depends(get_current_user)])
 
 # /api/v1/recommend/export 别名 — 兼容 VSTO 客户端
-vsto_router = APIRouter(prefix="/api/v1/recommend", tags=["单页导出（VSTO 兼容）"])
+vsto_router = APIRouter(prefix="/api/v1/recommend", tags=["单页导出（VSTO 兼容）"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/{slide_id}/export")

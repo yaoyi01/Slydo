@@ -3,11 +3,12 @@ API 路由 — 推荐与搜索
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from app.routers.auth import get_current_user
 from app.services.recommend import recommend_slides
 
-router = APIRouter(prefix="/api", tags=["推荐与搜索"])
+router = APIRouter(prefix="/api", tags=["推荐与搜索"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/recommend")

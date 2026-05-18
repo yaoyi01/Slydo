@@ -5,11 +5,12 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
+from app.routers.auth import get_current_user
 from app.services.etl.version_manager import restore_deck, cleanup_old_versions, update_deck
 
-router = APIRouter(prefix="/api/decks", tags=["版本管理"])
+router = APIRouter(prefix="/api/decks", tags=["版本管理"], dependencies=[Depends(get_current_user)])
 
 
 @router.post("/{deck_id}/restore")

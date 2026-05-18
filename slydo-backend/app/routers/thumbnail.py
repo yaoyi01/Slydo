@@ -6,16 +6,17 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
 from app.config import settings
 from app.database import async_session_factory
+from app.routers.auth import get_current_user
 from app.models.slide import Slide
 
-router = APIRouter(prefix="/api/v1/thumbnails", tags=["缩略图"])
+router = APIRouter(prefix="/api/v1/thumbnails", tags=["缩略图"], dependencies=[Depends(get_current_user)])
 
 # 缩略图根目录
 _wiki_root = Path(settings.slydo_wiki_path).expanduser()
