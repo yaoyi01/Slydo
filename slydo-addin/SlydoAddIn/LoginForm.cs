@@ -2,8 +2,10 @@ using System;
 using System.Drawing;
 using System.Net.Http;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 using Newtonsoft.Json;
+using SlydoAddIn.Services;
 
 namespace SlydoAddIn
 {
@@ -14,18 +16,16 @@ namespace SlydoAddIn
         private readonly Button _btnLogin;
         private readonly Label _lblError;
         private readonly Label _lblTitle;
-        private readonly PictureBox _logo;
 
         public LoginForm()
         {
             Text = "Slydo 登录";
-            Size = new Size(360, 300);
+            Size = new Size(360, 260);
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Color.White;
-            Icon = Properties.Resources.slydo_icon;
 
             _lblTitle = new Label
             {
@@ -39,20 +39,27 @@ namespace SlydoAddIn
 
             _txtUsername = new TextBox
             {
-                PlaceholderText = "用户名",
                 Location = new Point(30, 80),
                 Size = new Size(285, 28),
                 Font = new Font("微软雅黑", 12),
             };
+            // 模拟 PlaceholderText
+            _txtUsername.Enter += (s, e) => { if (_txtUsername.Text == "用户名") _txtUsername.Text = ""; };
+            _txtUsername.Leave += (s, e) => { if (_txtUsername.Text == "") _txtUsername.Text = "用户名"; };
+            _txtUsername.Text = "用户名";
 
             _txtPassword = new TextBox
             {
-                PlaceholderText = "密码",
                 Location = new Point(30, 120),
                 Size = new Size(285, 28),
                 Font = new Font("微软雅黑", 12),
                 UseSystemPasswordChar = true,
             };
+            // 模拟 PlaceholderText
+            _txtPassword.Enter += (s, e) => { if (_txtPassword.Text == "密码") { _txtPassword.Text = ""; _txtPassword.UseSystemPasswordChar = true; } };
+            _txtPassword.Leave += (s, e) => { if (_txtPassword.Text == "") { _txtPassword.Text = "密码"; _txtPassword.UseSystemPasswordChar = false; } };
+            _txtPassword.Text = "密码";
+            _txtPassword.UseSystemPasswordChar = false;
 
             _btnLogin = new Button
             {
@@ -93,7 +100,8 @@ namespace SlydoAddIn
             var username = _txtUsername.Text.Trim();
             var password = _txtPassword.Text;
 
-            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(password) ||
+                username == "用户名" || password == "密码")
             {
                 _lblError.Text = "请输入用户名和密码";
                 return;
@@ -118,7 +126,7 @@ namespace SlydoAddIn
                     if (response.IsSuccessStatusCode)
                     {
                         var tokenResp = JsonConvert.DeserializeObject<TokenResponse>(body);
-                        Services.TokenManager.Save(tokenResp.access_token, tokenResp.refresh_token);
+                        TokenManager.Save(tokenResp.access_token, tokenResp.refresh_token);
                         DialogResult = DialogResult.OK;
                         Close();
                     }
