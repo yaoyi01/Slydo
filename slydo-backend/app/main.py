@@ -18,6 +18,14 @@ async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # 启动时
     print(f"[Slydo] 启动: {settings.app_name} (debug={settings.debug})")
+    # 初始化数据库表
+    from app.database import init_db
+    try:
+        await init_db()
+        print("[Slydo] 数据库表已就绪")
+    except Exception as e:
+        print(f"[Slydo] 数据库初始化失败: {e}")
+
     # 初始化默认管理员
     from app.init_admin import ensure_admin
     try:
