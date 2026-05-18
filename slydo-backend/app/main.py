@@ -81,7 +81,7 @@ async def health():
 
 # ─── 路由注册 ──────────────────────────────────────────────
 
-from app.routers import version, recommend, export, deck, slide, thumbnail, monitor, usage, usage_dashboard, auth, admin_users
+from app.routers import version, recommend, export, deck, slide, thumbnail, monitor, usage, usage_dashboard, auth, admin_users, ingest
 app.include_router(version.router)
 app.include_router(recommend.router)
 app.include_router(export.router)
@@ -94,6 +94,7 @@ app.include_router(usage.router)  # 使用统计 API
 app.include_router(usage_dashboard.router)  # 使用统计面板
 app.include_router(auth.router)  # 用户认证
 app.include_router(admin_users.router)  # 管理员用户管理
+app.include_router(ingest.router)  # 文件上传入库
 
 # ─── 静态文件服务 ───────────────────────────────────────────
 
