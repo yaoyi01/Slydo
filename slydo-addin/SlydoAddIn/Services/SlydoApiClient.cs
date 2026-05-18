@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
 namespace SlydoAddIn.Services
 {
     /// <summary>
-    /// Slydo 后端 API 客户端（含离线缓存）
+    /// Slydo 后端 API 客户端（含离线缓存 + Token 认证）
     /// </summary>
     public class SlydoApiClient : IDisposable
     {
@@ -30,7 +31,73 @@ namespace SlydoAddIn.Services
         }
 
         /// <summary>
-        /// 获取幻灯片推荐（带离线缓存降级）
+        /// 在请求头自动添加 Bearer Token
+        /// </summary>
+        private void AttachToken()
+        {
+            if (TokenManager.IsLoggedIn)
+            {
+                _httpClient.DefaultRequestHeaders.Authorization =
+                    new AuthenticationHeaderValue("Bearer", TokenManager.AccessToken);
+            }
+        }
+
+        /// <summary>
+        /// 发起带 Token 的 GET 请求，自动处理 401 重试
+        /// </summary>
+        private async Task<HttpResponseMessage> GetWithAuthAsync(string url)
+        {
+            AttachToken();
+            var response = await _httpClient.GetAsync(url);
+
+            // 401 → 尝试 Refresh Token
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized && TokenManager.IsLoggedIn)
+            {
+                var refreshed = await TryRefreshTokenAsync();
+                if (refreshed)
+                {
+                    AttachToken();
+                    response = await _httpClient.GetAsync(url);
+                }
+            }
+
+            return response;
+        }
+
+        /// <summary>
+        /// 尝试用 Refresh Token 续期
+        /// </summary>
+        public async Task<bool> TryRefreshTokenAsync()
+        {
+            try
+            {
+                var refresh = TokenManager.RefreshToken;
+                if (string.IsNullOrEmpty(refresh)) return false;
+
+                var payload = JsonConvert.SerializeObject(new { refresh_token = refresh });
+                var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync("/api/auth/refresh", content);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var body = await response.Content.ReadAsStringAsync();
+                    var tokenResp = JsonConvert.DeserializeObject<TokenResponse>(body);
+                    TokenManager.Save(tokenResp.access_token, tokenResp.refresh_token);
+                    return true;
+                }
+
+                // Refresh Token 也过期 → 清空 Token，触发重新登录
+                TokenManager.Clear();
+                return false;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 获取幻灯片推荐（带离线缓存降级 + Token 认证）
         /// </summary>
         public async Task<RecommendResponse> GetRecommendationsAsync(string searchText = null, int topK = 20)
         {
@@ -41,9 +108,17 @@ namespace SlydoAddIn.Services
                 if (!string.IsNullOrEmpty(searchText))
                     queryParams.Add($"q={Uri.EscapeDataString(searchText)}");
                 var query = "?" + string.Join("&", queryParams);
-                var response = await _httpClient.GetStringAsync($"/api/v1/recommend/slides{query}");
-                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<RecommendResponse>(response);
-                // 成功时写缓存
+
+                var response = await GetWithAuthAsync($"/api/v1/recommend/slides{query}");
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        return new RecommendResponse { RequestError = "请先登录后使用" };
+                    return TryLoadRecommendCache(searchText ?? "", $"服务异常 (HTTP {(int)response.StatusCode})");
+                }
+
+                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<RecommendResponse>(
+                    await response.Content.ReadAsStringAsync());
                 SaveRecommendCache(searchText ?? "", result);
                 return result;
             }
@@ -117,6 +192,11 @@ namespace SlydoAddIn.Services
                 exportClient = new HttpClient();
                 exportClient.BaseAddress = _httpClient.BaseAddress;
                 exportClient.Timeout = TimeSpan.FromSeconds(120);
+                // Token
+                if (TokenManager.IsLoggedIn)
+                    exportClient.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", TokenManager.AccessToken);
+
                 var response = await exportClient.GetAsync(url);
                 response.EnsureSuccessStatusCode();
 
@@ -138,7 +218,7 @@ namespace SlydoAddIn.Services
         /// </summary>
         public async Task<byte[]> GetThumbnailAsync(string slideId)
         {
-            var response = await _httpClient.GetAsync($"/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}");
+            var response = await GetWithAuthAsync($"/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}");
             response.EnsureSuccessStatusCode();
             return await response.Content.ReadAsByteArrayAsync();
         }
@@ -152,8 +232,17 @@ namespace SlydoAddIn.Services
             {
                 var titlesStr = string.Join(",", completedTitles);
                 var url = $"/api/recommend/outline?titles={Uri.EscapeDataString(titlesStr)}&current={Uri.EscapeDataString(currentTitle)}&top_k={topK}";
-                var response = await _httpClient.GetStringAsync(url);
-                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<OutlineResponse>(response);
+
+                var response = await GetWithAuthAsync(url);
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        return new OutlineResponse { Error = "请先登录后使用" };
+                    return TryLoadOutlineCache(completedTitles, currentTitle, $"服务异常 (HTTP {(int)response.StatusCode})");
+                }
+
+                var result = Newtonsoft.Json.JsonConvert.DeserializeObject<OutlineResponse>(
+                    await response.Content.ReadAsStringAsync());
                 SaveOutlineCache(completedTitles, currentTitle, result);
                 return result;
             }
@@ -238,6 +327,7 @@ namespace SlydoAddIn.Services
         {
             try
             {
+                AttachToken();
                 var url = $"/api/usage/log?action=search&query={Uri.EscapeDataString(query ?? "")}";
                 // 用 GET 方式触发（避免 POST 的 CORS 问题）
                 await _httpClient.GetStringAsync(url);
@@ -253,6 +343,7 @@ namespace SlydoAddIn.Services
             if (string.IsNullOrEmpty(slideId)) return;
             try
             {
+                AttachToken();
                 var url = $"/api/usage/log?action={Uri.EscapeDataString(action)}&slide_id={Uri.EscapeDataString(slideId)}";
                 await _httpClient.GetStringAsync(url);
             }

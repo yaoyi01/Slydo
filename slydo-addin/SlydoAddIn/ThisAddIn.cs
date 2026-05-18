@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using Microsoft.Office.Tools;
 using Office = Microsoft.Office.Core;
+using SlydoAddIn.Services;
 
 namespace SlydoAddIn
 {
@@ -46,7 +47,14 @@ namespace SlydoAddIn
 
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
-            // 初始化 Task Pane（纯 WinForms UserControl，可直接传给 VSTO）
+            // Step 1: 检查登录状态
+            if (!TokenManager.IsLoggedIn)
+            {
+                ShowLoginForm();
+                // 用户取消登录 → 仍然显示 TaskPane（但功能不可用，API 会返回 401 友好提示）
+            }
+
+            // Step 2: 初始化 Task Pane
             _paneControl = new TaskPane.SlideRecommendationPane();
             _taskPane = CustomTaskPanes.Add(_paneControl, "Slydo 知识库");
 
@@ -69,6 +77,25 @@ namespace SlydoAddIn
                 _paneControl?.TriggerRecommendation();
             };
             initTimer.Start();
+        }
+
+        /// <summary>
+        /// 弹出登录窗口
+        /// </summary>
+        private void ShowLoginForm()
+        {
+            try
+            {
+                using (var loginForm = new LoginForm())
+                {
+                    loginForm.StartPosition = FormStartPosition.CenterScreen;
+                    loginForm.ShowDialog();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 登录窗口异常: {ex.Message}");
+            }
         }
 
         private void ThisAddIn_Shutdown(object sender, EventArgs e)
