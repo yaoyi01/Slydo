@@ -95,12 +95,18 @@ app.include_router(usage_dashboard.router)  # 使用统计面板
 app.include_router(auth.router)  # 用户认证
 app.include_router(admin_users.router)  # 管理员用户管理
 
-# ─── 静态文件服务（缩略图路径） ───────────────────────────
+# ─── 静态文件服务 ───────────────────────────────────────────
 
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
 from app.config import settings
 
+# 缩略图路径
 wiki_path = Path(settings.slydo_wiki_path).expanduser() / "thumbnails"
 if wiki_path.exists():
     app.mount("/api/thumbnails", StaticFiles(directory=str(wiki_path)), name="thumbnails")
+
+# 管理后台静态页面
+admin_static = Path(__file__).parent / "static" / "admin"
+if admin_static.exists():
+    app.mount("/admin", StaticFiles(directory=str(admin_static), html=True), name="admin")

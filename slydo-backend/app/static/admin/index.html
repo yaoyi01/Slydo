@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slydo 管理后台</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f5f7fa; color: #333; }
+.login-page, .app-page { display: none; }
+.login-page.active, .app-page.active { display: block; }
+.container { max-width: 960px; margin: 0 auto; padding: 20px; }
+.card { background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 24px; margin-bottom: 20px; }
+.card h2 { font-size: 18px; margin-bottom: 16px; color: #1a1a2e; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; color: #666; margin-bottom: 4px; }
+.form-group input, .form-group select { width: 100%; padding: 8px 12px; border: 1px solid #d9d9d9; border-radius: 4px; font-size: 14px; }
+.form-group input:focus, .form-group select:focus { outline: none; border-color: #1890ff; box-shadow: 0 0 0 2px rgba(24,144,255,.2); }
+.btn { display: inline-block; padding: 8px 20px; border: none; border-radius: 4px; font-size: 14px; cursor: pointer; }
+.btn-primary { background: #1890ff; color: #fff; }
+.btn-primary:hover { background: #40a9ff; }
+.btn-danger { background: #ff4d4f; color: #fff; }
+.btn-success { background: #52c41a; color: #fff; }
+.btn-sm { padding: 4px 12px; font-size: 12px; }
+.header { background: #1a1a2e; color: #fff; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; }
+.header h1 { font-size: 18px; }
+.header .user-info { font-size: 14px; display: flex; align-items: center; gap: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+th { background: #fafafa; font-weight: 600; color: #666; }
+tr:hover td { background: #f0f5ff; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+.badge-admin { background: #e6f7ff; color: #1890ff; border: 1px solid #91d5ff; }
+.badge-user { background: #f6ffed; color: #52c41a; border: 1px solid #b7eb8f; }
+.badge-active { color: #52c41a; }
+.badge-disabled { color: #ff4d4f; }
+.status-bar { position: fixed; bottom: 0; left: 0; right: 0; padding: 8px 20px; background: #fffbe6; border-top: 1px solid #ffe58f; font-size: 12px; color: #666; text-align: center; z-index: 100; }
+.login-box { max-width: 400px; margin: 80px auto; }
+.login-box .card { text-align: center; }
+.login-box h1 { margin-bottom: 24px; font-size: 22px; color: #1a1a2e; }
+.error-msg { color: #ff4d4f; font-size: 13px; margin-top: 8px; }
+.success-msg { color: #52c41a; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<div id="login-page" class="login-page active">
+  <div class="container login-box">
+    <div class="card">
+      <h1>Slydo 管理后台</h1>
+      <div class="form-group">
+        <input type="text" id="login-username" placeholder="用户名" autocomplete="username">
+      </div>
+      <div class="form-group">
+        <input type="password" id="login-password" placeholder="密码" autocomplete="current-password">
+      </div>
+      <button class="btn btn-primary" onclick="login()" style="width:100%">登 录</button>
+      <div id="login-error" class="error-msg"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app-page" class="app-page">
+  <div class="header">
+    <h1>Slydo 管理后台</h1>
+    <div class="user-info">
+      <span id="header-user"></span>
+      <button class="btn btn-sm btn-danger" onclick="logout()">退出</button>
+    </div>
+  </div>
+  <div class="container">
+    <div class="card">
+      <h2>创建用户</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:10px;align-items:end">
+        <div class="form-group" style="margin:0">
+          <label>用户名</label>
+          <input type="text" id="new-username" placeholder="账号">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>密码</label>
+          <input type="password" id="new-password" placeholder="密码">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>显示名称</label>
+          <input type="text" id="new-displayname" placeholder="显示名称">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>角色</label>
+          <select id="new-role"><option value="user">普通用户</option><option value="admin">管理员</option></select>
+        </div>
+        <button class="btn btn-primary" onclick="createUser()" style="margin-bottom:14px">创建</button>
+      </div>
+      <div id="create-msg"></div>
+    </div>
+
+    <div class="card">
+      <h2>用户列表</h2>
+      <div class="form-group" style="display:flex;gap:8px">
+        <input type="text" id="search-q" placeholder="搜索用户名..." style="flex:1" oninput="loadUsers()">
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>用户名</th>
+            <th>显示名称</th>
+            <th>角色</th>
+            <th>状态</th>
+            <th>创建时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="user-table"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar" class="status-bar">就绪</div>
+
+<script>
+let token = localStorage.getItem('slydo_token') || '';
+
+function getApiBase() {
+  // 自动适配后端地址
+  return window.location.origin;
+}
+
+async function api(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const resp = await fetch(getApiBase() + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  if (resp.status === 401 || resp.status === 403) {
+    token = '';
+    localStorage.removeItem('slydo_token');
+    showLogin();
+    throw new Error('登录已过期');
+  }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+    throw new Error(err.detail || '请求失败');
+  }
+  return resp.json();
+}
+
+function setStatus(msg, type) {
+  const el = document.getElementById('status-bar');
+  el.textContent = msg;
+  el.style.background = type === 'error' ? '#fff2f0' : type === 'success' ? '#f6ffed' : '#fffbe6';
+  el.style.borderColor = type === 'error' ? '#ffccc7' : type === 'success' ? '#b7eb8f' : '#ffe58f';
+}
+
+function showLogin() {
+  document.getElementById('login-page').classList.add('active');
+  document.getElementById('app-page').classList.remove('active');
+}
+
+function showApp(user) {
+  document.getElementById('login-page').classList.remove('active');
+  document.getElementById('app-page').classList.add('active');
+  document.getElementById('header-user').textContent = `👤 ${user.display_name || user.username} (${user.role})`;
+  loadUsers();
+}
+
+async function login() {
+  const username = document.getElementById('login-username').value;
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.textContent = '';
+  try {
+    const resp = await api('POST', '/api/auth/login', { username, password });
+    token = resp.access_token;
+    localStorage.setItem('slydo_token', token);
+    const me = await api('GET', '/api/auth/me');
+    showApp(me);
+    setStatus(`欢迎回来，${me.display_name || me.username}`, 'success');
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+}
+
+function logout() {
+  token = '';
+  localStorage.removeItem('slydo_token');
+  showLogin();
+  setStatus('已退出登录');
+}
+
+async function loadUsers() {
+  const q = document.getElementById('search-q').value;
+  try {
+    const users = await api('GET', `/api/admin/users?q=${encodeURIComponent(q)}`);
+    const tbody = document.getElementById('user-table');
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td>${esc(u.username)}</td>
+        <td>${esc(u.display_name || '-')}</td>
+        <td><span class="badge ${u.role === 'admin' ? 'badge-admin' : 'badge-user'}">${u.role}</span></td>
+        <td><span class="${u.is_active ? 'badge-active' : 'badge-disabled'}">${u.is_active ? '✓ 启用' : '✗ 禁用'}</span></td>
+        <td>${new Date(u.created_at).toLocaleDateString()}</td>
+        <td>
+          <button class="btn btn-sm ${u.is_active ? 'btn-danger' : 'btn-success'}" onclick="toggleUser('${u.id}', ${!u.is_active})">
+            ${u.is_active ? '禁用' : '启用'}
+          </button>
+          <button class="btn btn-sm btn-primary" onclick="showResetPwd('${u.id}')">重置密码</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    setStatus('加载用户列表失败: ' + e.message, 'error');
+  }
+}
+
+function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+async function createUser() {
+  const data = {
+    username: document.getElementById('new-username').value,
+    password: document.getElementById('new-password').value,
+    display_name: document.getElementById('new-displayname').value || null,
+    role: document.getElementById('new-role').value,
+  };
+  const msgEl = document.getElementById('create-msg');
+  try {
+    await api('POST', '/api/admin/users', data);
+    msgEl.innerHTML = '<span class="success-msg">✅ 用户创建成功</span>';
+    document.getElementById('new-username').value = '';
+    document.getElementById('new-password').value = '';
+    document.getElementById('new-displayname').value = '';
+    loadUsers();
+    setStatus('用户创建成功', 'success');
+  } catch (e) {
+    msgEl.innerHTML = `<span class="error-msg">❌ ${e.message}</span>`;
+  }
+}
+
+async function toggleUser(id, activate) {
+  try {
+    await api('PATCH', `/api/admin/users/${id}`, { is_active: activate });
+    loadUsers();
+    setStatus(`用户已${activate ? '启用' : '禁用'}`, 'success');
+  } catch (e) {
+    setStatus(e.message, 'error');
+  }
+}
+
+function showResetPwd(id) {
+  const pwd = prompt('输入新密码（至少4位）');
+  if (!pwd || pwd.length < 4) return;
+  api('PATCH', `/api/admin/users/${id}`, { password: pwd })
+    .then(() => { setStatus('密码已重置', 'success'); loadUsers(); })
+    .catch(e => setStatus(e.message, 'error'));
+}
+
+// 启动检查
+(async function() {
+  if (token) {
+    try {
+      const me = await api('GET', '/api/auth/me');
+      showApp(me);
+      return;
+    } catch (e) {
+      localStorage.removeItem('slydo_token');
+      token = '';
+    }
+  }
+  showLogin();
+})();
+</script>
+</body>
+</html>
