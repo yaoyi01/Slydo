@@ -240,9 +240,12 @@
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="TaskPane\SlideRecommendationWpf.xaml.cs">
-    <Compile Include="LoginForm.cs">
-    <Compile Include="Services\TokenManager.cs">
       <DependentUpon>SlideRecommendationWpf.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="LoginForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="Services\TokenManager.cs">
     </Compile>
     <Compile Include="TaskPane\SlideCardWpf.xaml.cs">
       <DependentUpon>SlideCardWpf.xaml</DependentUpon>
