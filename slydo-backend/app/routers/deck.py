@@ -135,7 +135,7 @@ async def api_delete_deck(deck_id: str):
     except Exception as e:
         logger.warning(f"[删除] Qdrant 清理失败: {e}")
 
-    # 3. 清理 LLM Wiki 文件夹
+    # 3. 清理 LLM Wiki 文件夹 + 缩略图
     try:
         wiki_root = Path(settings.slydo_wiki_path).expanduser()
         deck_wiki_dir = wiki_root / "slides" / f"deck_{deck_id}"
@@ -143,6 +143,12 @@ async def api_delete_deck(deck_id: str):
             import shutil
             shutil.rmtree(deck_wiki_dir)
             logger.info(f"[删除] Wiki 文件夹已删除: {deck_wiki_dir}")
+
+        # 清理缩略图
+        deck_thumb_dir = wiki_root / "thumbnails" / f"deck_{deck_id}"
+        if deck_thumb_dir.exists():
+            shutil.rmtree(deck_thumb_dir)
+            logger.info(f"[删除] 缩略图文件夹已删除: {deck_thumb_dir}")
     except Exception as e:
         logger.warning(f"[删除] Wiki 文件夹清理失败: {e}")
 

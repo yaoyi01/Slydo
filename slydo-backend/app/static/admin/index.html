@@ -309,31 +309,45 @@ function uploadFile(input) {
   const zone = document.getElementById('upload-zone');
   const status = document.getElementById('upload-status');
   zone.style.display = 'none';
-  status.innerHTML = '📤 上传中... <span class="upload-progress">|</span>';
+  status.innerHTML = '📤 上传中 <span id="upload-progress-bar" style="display:inline-block;width:200px;height:8px;background:#f0f0f0;border-radius:4px;vertical-align:middle;margin-left:8px"><span id="upload-progress-fill" style="display:block;width:0%;height:100%;background:#1890ff;border-radius:4px;transition:width .3s"></span></span> <span id="upload-progress-text" style="font-size:12px;color:#999">0%</span>';
 
   const formData = new FormData();
   formData.append('file', file);
 
-  fetch(getApiBase() + '/api/ingest/upload', {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${token}` },
-    body: formData,
-  })
-  .then(r => r.json().catch(()=>({status:'error',detail:r.statusText})))
-  .then(data => {
-    if (data.status === 'ok') {
-      status.innerHTML = `<span class="success-msg">✅ ${data.detail}</span>`;
-      setStatus(`文件已上传: ${file.name}`,'success');
-      loadWatchFiles();
-    } else {
-      status.innerHTML = `<span class="error-msg">❌ ${data.detail||'上传失败'}</span>`;
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', getApiBase() + '/api/ingest/upload', true);
+  xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+  xhr.upload.onprogress = function(e) {
+    if (e.lengthComputable) {
+      const pct = Math.round(e.loaded / e.total * 100);
+      document.getElementById('upload-progress-fill').style.width = pct + '%';
+      document.getElementById('upload-progress-text').textContent = pct + '%';
     }
+  };
+
+  xhr.onload = function() {
     zone.style.display = 'block';
-  })
-  .catch(e => {
-    status.innerHTML = `<span class="error-msg">❌ 上传失败: ${e.message}</span>`;
+    try {
+      const data = JSON.parse(xhr.responseText);
+      if (data.status === 'ok') {
+        status.innerHTML = `<span class="success-msg">✅ ${data.detail}</span>`;
+        setStatus(`文件已上传: ${file.name}`,'success');
+        loadWatchFiles();
+      } else {
+        status.innerHTML = `<span class="error-msg">❌ ${data.detail||'上传失败'}</span>`;
+      }
+    } catch(e) {
+      status.innerHTML = `<span class="error-msg">❌ 上传失败 (HTTP ${xhr.status})</span>`;
+    }
+  };
+
+  xhr.onerror = function() {
     zone.style.display = 'block';
-  });
+    status.innerHTML = `<span class="error-msg">❌ 网络错误，上传失败</span>`;
+  };
+
+  xhr.send(formData);
   input.value = '';
 }
 
