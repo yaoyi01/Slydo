@@ -94,6 +94,7 @@ tr:hover td { background: #f0f5ff; }
       <div class="tab" data-tab="tab-decks" onclick="switchTab('tab-decks')">📁 文件管理</div>
       <div class="tab" data-tab="tab-dashboard" onclick="loadDashboard();switchTab('tab-dashboard')">📊 监控面板</div>
       <div class="tab" data-tab="tab-usage" onclick="loadUsageStats();switchTab('tab-usage')">📈 使用统计</div>
+      <div class="tab" data-tab="tab-config" onclick="loadConfig();switchTab('tab-config')">⚙️ 系统配置</div>
     </div>
 
     <!-- Tab 1: 文件入库 -->
@@ -211,6 +212,39 @@ tr:hover td { background: #f0f5ff; }
           <thead><tr><th>文档</th><th>页面数</th><th>总使用</th><th>被使用页</th><th>覆盖率</th></tr></thead>
           <tbody id="usage-deck-table"></tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- Tab 6: 系统配置 -->
+    <div id="tab-config" class="tab-content">
+      <div class="card">
+        <h2>LLM / 视觉模型配置</h2>
+        <p style="font-size:13px;color:#999;margin-bottom:16px">修改后需要重启 API 容器才能生效（docker compose restart api）</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <h3 style="font-size:15px;margin-bottom:12px;color:#1a1a2e">🤖 LLM 文本模型</h3>
+            <div class="form-group"><label>提供商</label><input type="text" id="cfg-llm-provider" disabled style="background:#f5f5f5"></div>
+            <div class="form-group"><label>模型名称</label><input type="text" id="cfg-llm-model" placeholder="deepseek-v4-flash"></div>
+            <div class="form-group"><label>API 地址</label><input type="text" id="cfg-llm-url" placeholder="https://api.deepseek.com/v1"></div>
+          </div>
+          <div>
+            <h3 style="font-size:15px;margin-bottom:12px;color:#1a1a2e">👁️ 视觉模型 (VL)</h3>
+            <div class="form-group"><label>提供商</label><input type="text" id="cfg-vl-provider" disabled style="background:#f5f5f5"></div>
+            <div class="form-group"><label>模型名称</label><input type="text" id="cfg-vl-model" placeholder="qwen3-vl-flash"></div>
+            <div class="form-group"><label>API 地址</label><input type="text" id="cfg-vl-url" placeholder="https://dashscope.aliyuncs.com/api/v1"></div>
+          </div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
+          <button class="btn btn-primary" onclick="saveConfig()">💾 保存配置</button>
+          <span id="cfg-status"></span>
+        </div>
+      </div>
+      <div class="card">
+        <h2>嵌入服务配置</h2>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="form-group"><label>提供商</label><input type="text" id="cfg-embed-provider" disabled style="background:#f5f5f5"></div>
+          <div class="form-group"><label>嵌入模型</label><input type="text" id="cfg-embed-model" disabled style="background:#f5f5f5"></div>
+        </div>
       </div>
     </div>
 
@@ -553,6 +587,42 @@ async function loadUsageStats() {
     document.getElementById('usage-stats-grid').innerHTML =
       '<div class="stat-card" style="grid-column:1/-1;color:#999">使用统计数据暂不可用</div>';
     console.error('Usage stats error:', e);
+  }
+}
+
+// ═══ 系统配置 ═══
+
+async function loadConfig() {
+  try {
+    const config = await api('GET', '/api/admin/config');
+    document.getElementById('cfg-llm-provider').value = config.llm_provider || '';
+    document.getElementById('cfg-llm-model').value = config.llm_model || '';
+    document.getElementById('cfg-llm-url').value = config.llm_base_url || '';
+    document.getElementById('cfg-vl-provider').value = config.vl_provider || '';
+    document.getElementById('cfg-vl-model').value = config.vl_model || '';
+    document.getElementById('cfg-vl-url').value = config.vl_base_url || '';
+    document.getElementById('cfg-embed-provider').value = config.embed_provider || '';
+    document.getElementById('cfg-embed-model').value = config.embed_model || '';
+    document.getElementById('cfg-status').textContent = '';
+  } catch(e) {
+    document.getElementById('cfg-status').innerHTML = '<span class="error-msg">❌ 加载配置失败</span>';
+  }
+}
+
+async function saveConfig() {
+  const status = document.getElementById('cfg-status');
+  status.innerHTML = '⏳ 保存中...';
+  try {
+    const data = {
+      llm_model: document.getElementById('cfg-llm-model').value || null,
+      llm_base_url: document.getElementById('cfg-llm-url').value || null,
+      vl_model: document.getElementById('cfg-vl-model').value || null,
+      vl_base_url: document.getElementById('cfg-vl-url').value || null,
+    };
+    const result = await api('PUT', '/api/admin/config', data);
+    status.innerHTML = '<span class="success-msg">✅ 配置已保存（重启容器后生效）</span>';
+  } catch(e) {
+    status.innerHTML = `<span class="error-msg">❌ ${e.message}</span>`;
   }
 }
 

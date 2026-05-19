@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -38,7 +39,6 @@ async def upload_pptx(
     if dest_path.exists():
         stem = dest_path.stem
         suffix = dest_path.suffix
-        import time
         dest_path = WATCH_DIR / f"{stem}_{int(time.time())}{suffix}"
 
     try:
@@ -49,6 +49,14 @@ async def upload_pptx(
 
         with open(dest_path, "wb") as f:
             f.write(content)
+
+        # 重命名文件为安全的英文名（避免 LibreOffice 中文路径问题）
+        safe_name = f"{int(time.time())}_{dest_path.stem[:20]}.pptx"
+        safe_path = dest_path.parent / safe_name
+        if safe_path != dest_path:
+            dest_path.rename(safe_path)
+            dest_path = safe_path
+            logger.info(f"文件已重命名为: {safe_path.name}")
 
         # 触发入库（后台异步执行）
         asyncio.create_task(_run_ingest(dest_path))
