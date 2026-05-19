@@ -572,7 +572,7 @@ async def monitor_stats():
     disk_wiki = _format_size(_get_dir_size(wiki_root / "slides"))
     disk_thumbnails = _format_size(_get_dir_size(thumb_dir))
     # PG 磁盘 → 近似估算
-    disk_pg = _format_size(_get_dir_size(Path("/var/lib/postgresql/16/main")) if Path("/var/lib/postgresql/16/main").exists() else Path("/var/lib/postgresql"))
+    disk_pg = _format_size(_get_dir_size(Path("/var/lib/postgresql/16/main"))) if Path("/var/lib/postgresql/16/main").exists() else _get_dir_size(Path("/var/lib/postgresql/15/main")) if Path("/var/lib/postgresql/15/main").exists() else "—"
     if disk_pg == "0 B":
         disk_pg = "—"
 

@@ -3,9 +3,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import shutil
-import subprocess
-import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -102,21 +99,11 @@ async def delete_watch_file(
 
 
 async def _run_ingest(file_path: Path):
-    """后台执行入库脚本"""
+    """后台执行入库（直接调用 watcher 的 handle_created）"""
     try:
-        backend_dir = Path(__file__).parent.parent
-        venv_python = backend_dir / ".venv" / "bin" / "python3"
-        watcher_script = backend_dir / "watcher.py"
-
-        proc = await asyncio.create_subprocess_exec(
-            str(venv_python), str(watcher_script), str(WATCH_DIR), "--poll",
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=600)
-        if proc.returncode != 0:
-            logger.error(f"入库失败: {stderr.decode()[:500]}")
-        else:
-            logger.info(f"入库完成: {file_path.name}")
+        from watcher import handle_created
+        logger.info(f"开始入库: {file_path.name}")
+        await handle_created(file_path)
+        logger.info(f"入库完成: {file_path.name}")
     except Exception as e:
-        logger.error(f"入库异常: {e}")
+        logger.error(f"入库异常: {e}", exc_info=True)
