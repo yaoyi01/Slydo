@@ -39,6 +39,8 @@ async def create_user(
         password_hash=hash_password(data.password),
         display_name=data.display_name,
         role=data.role,
+        permissions=data.permissions or [],
+        token_ttl_hours=data.token_ttl_hours or 168,
     )
     db.add(user)
     await db.flush()
@@ -79,6 +81,16 @@ async def update_user(
         user.role = data.role
     if data.password is not None:
         user.password_hash = hash_password(data.password)
+    if data.permissions is not None:
+        user.permissions = data.permissions
+    if data.token_ttl_hours is not None:
+        user.token_ttl_hours = data.token_ttl_hours
+
+    # 创建时补上默认权限
+    if user.permissions is None or user.permissions == []:
+        if user.role == "admin":
+            from app.init_admin import ALL_PERMISSIONS
+            user.permissions = ALL_PERMISSIONS
 
     await db.flush()
     await db.refresh(user)

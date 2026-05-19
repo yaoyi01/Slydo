@@ -127,9 +127,22 @@ tr:hover td { background: #f0f5ff; }
           <div class="form-group" style="margin:0"><label>密码</label><input type="password" id="new-password"></div>
           <div class="form-group" style="margin:0"><label>显示名称</label><input type="text" id="new-displayname"></div>
           <div class="form-group" style="margin:0"><label>角色</label>
-            <select id="new-role"><option value="user">普通用户</option><option value="admin">管理员</option></select>
+            <select id="new-role" onchange="togglePermFields()"><option value="user">普通用户</option><option value="admin">管理员</option></select>
           </div>
           <button class="btn btn-primary" onclick="createUser()" style="margin-bottom:14px">创建</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-top:8px" id="user-ext-fields">
+          <div class="form-group" style="margin:0"><label>菜单权限</label>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px" id="permission-checkboxes">
+              <label><input type="checkbox" value="upload" checked> 文件入库</label>
+              <label><input type="checkbox" value="users" checked> 用户管理</label>
+              <label><input type="checkbox" value="files" checked> 文件管理</label>
+              <label><input type="checkbox" value="dashboard" checked> 监控面板</label>
+              <label><input type="checkbox" value="usage" checked> 使用统计</label>
+              <label><input type="checkbox" value="config" checked> 系统配置</label>
+            </div>
+          </div>
+          <div class="form-group" style="margin:0"><label>Token 有效期（小时）</label><input type="number" id="new-token-ttl" value="168" min="1" max="8760" style="width:100px"></div>
         </div>
         <div id="create-msg"></div>
       </div>
@@ -139,7 +152,7 @@ tr:hover td { background: #f0f5ff; }
           <input type="text" id="search-q" placeholder="搜索用户名..." style="flex:1" oninput="loadUsers()">
         </div>
         <table>
-          <thead><tr><th>用户名</th><th>显示名称</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
+          <thead><tr><th>用户名</th><th>显示名称</th><th>角色</th><th>菜单权限</th><th>Token 时长</th><th>状态</th><th>创建时间</th><th>操作</th></tr></thead>
           <tbody id="user-table"></tbody>
         </table>
       </div>
@@ -387,11 +400,14 @@ async function loadUsers() {
   const q=document.getElementById('search-q').value;
   try {
     const users=await api('GET',`/api/admin/users?q=${encodeURIComponent(q)}`);
+    const permNames={upload:'文件入库',users:'用户管理',files:'文件管理',dashboard:'监控面板',usage:'使用统计',config:'系统配置'};
     document.getElementById('user-table').innerHTML = users.map(u => `
       <tr>
         <td>${esc(u.username)}</td>
         <td>${esc(u.display_name||'-')}</td>
         <td><span class="badge ${u.role==='admin'?'badge-admin':'badge-user'}">${u.role}</span></td>
+        <td style="font-size:12px">${(u.permissions||[]).map(p=>permNames[p]||p).join(', ')||'-'}</td>
+        <td>${u.token_ttl_hours||168}h</td>
         <td><span class="${u.is_active?'badge-active':'badge-disabled'}">${u.is_active?'✓ 启用':'✗ 禁用'}</span></td>
         <td>${new Date(u.created_at).toLocaleDateString()}</td>
         <td>
@@ -403,8 +419,24 @@ async function loadUsers() {
   } catch(e) { setStatus('加载用户失败:'+e.message,'error'); }
 }
 
+function togglePermFields() {
+  const role=document.getElementById('new-role').value;
+  const ext=document.getElementById('user-ext-fields');
+  ext.style.display=role==='admin'?'grid':'none';
+}
+
 async function createUser() {
-  const data={username:document.getElementById('new-username').value,password:document.getElementById('new-password').value,display_name:document.getElementById('new-displayname').value||null,role:document.getElementById('new-role').value};
+  const perms=[];
+  document.querySelectorAll('#permission-checkboxes input:checked').forEach(cb=>perms.push(cb.value));
+  const role=document.getElementById('new-role').value;
+  const data={
+    username:document.getElementById('new-username').value,
+    password:document.getElementById('new-password').value,
+    display_name:document.getElementById('new-displayname').value||null,
+    role:role,
+    permissions: perms,
+    token_ttl_hours: parseInt(document.getElementById('new-token-ttl').value)||168,
+  };
   const msgEl=document.getElementById('create-msg');
   try { await api('POST','/api/admin/users',data); msgEl.innerHTML='<span class="success-msg">✅ 创建成功</span>'; ['new-username','new-password','new-displayname'].forEach(id=>document.getElementById(id).value=''); loadUsers(); setStatus('用户创建成功','success'); }
   catch(e) { msgEl.innerHTML=`<span class="error-msg">❌ ${e.message}</span>`; }
@@ -640,8 +672,23 @@ async function saveConfig() {
 // ═══ 启动 ═══
 (async function() {
   if (token) {
-    try { const me=await api('GET','/api/auth/me'); showApp(me); return; }
-    catch(e) { localStorage.removeItem('slydo_token'); token=''; }
+    showAdmin();
+    // 同步用户权限信息，控制 Tab 显示
+    try {
+      const me = await api('GET', '/api/auth/me');
+      if (me.permissions) {
+        const tabMap = {upload:'tab-upload',users:'tab-users',files:'tab-decks',dashboard:'tab-dashboard',usage:'tab-usage',config:'tab-config'};
+        document.querySelectorAll('.tabs .tab').forEach(el => {
+          const tabId = el.getAttribute('data-tab');
+          const perm = Object.keys(tabMap).find(k => tabMap[k]===tabId);
+          if (perm && !me.permissions.includes(perm)) el.style.display = 'none';
+        });
+        if (!me.permissions.includes('users')) {
+          const ext = document.getElementById('user-ext-fields');
+          if (ext) ext.style.display = 'none';
+        }
+      }
+    } catch(e) { showLogin(); }
   }
   showLogin();
 })();

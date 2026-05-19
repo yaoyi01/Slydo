@@ -47,6 +47,24 @@ async def upload_pptx(
         if len(content) > max_size:
             raise HTTPException(status_code=413, detail="文件过大，最大支持 100MB")
 
+        # 计算 MD5 / SHA256 去重
+        import hashlib, json
+        file_hash = hashlib.sha256(content).hexdigest()
+        from app.database import async_session_factory
+        from sqlalchemy import text
+        async with async_session_factory() as session:
+            row = await session.execute(
+                text("SELECT id, title FROM decks WHERE checksum = :cs LIMIT 1"),
+                {"cs": file_hash},
+            )
+            existing = row.fetchone()
+        if existing:
+            return {
+                "status": "skipped",
+                "detail": f"文件 {file.filename} 与已入库的「{existing[1]}」内容完全一致（相同 SHA256），已跳过",
+                "data": {"duplicate": True, "existing_deck_id": str(existing[0])},
+            }
+
         with open(dest_path, "wb") as f:
             f.write(content)
 

@@ -4,8 +4,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, String, func
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -25,6 +25,12 @@ class User(Base):
     role: Mapped[str] = mapped_column(
         String(16), nullable=False, default="user"
     )  # "admin" | "user"
+    permissions: Mapped[list] = mapped_column(
+        JSONB, nullable=False, default=list
+    )  # 菜单权限列表
+    token_ttl_hours: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=168
+    )  # Token 有效期（小时），默认 7 天
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()

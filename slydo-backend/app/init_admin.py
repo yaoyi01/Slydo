@@ -15,6 +15,8 @@ DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123456"
 
 
+ALL_PERMISSIONS = ["upload", "users", "files", "dashboard", "usage", "config"]
+
 async def ensure_admin():
     """确保默认管理员账号存在"""
     try:
@@ -31,6 +33,8 @@ async def ensure_admin():
                 password_hash=hash_password(DEFAULT_ADMIN_PASSWORD),
                 display_name="系统管理员",
                 role="admin",
+                permissions=ALL_PERMISSIONS,
+                token_ttl_hours=168,
             )
             session.add(admin)
             await session.commit()

@@ -31,8 +31,10 @@ REFRESH_TOKEN_EXPIRE_DAYS = 30
 SECRET_KEY = settings.jwt_secret_key or "slydo-default-secret-change-me"
 
 
-def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None) -> str:
+def create_access_token(data: dict[str, Any], expires_delta: timedelta | None = None, *, expires_delta_hours: int = 24) -> str:
     to_encode = data.copy()
+    if expires_delta is None and expires_delta_hours != 24:
+        expires_delta = timedelta(hours=expires_delta_hours)
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire, "type": "access"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)

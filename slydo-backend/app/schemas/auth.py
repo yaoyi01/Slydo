@@ -29,6 +29,8 @@ class UserCreate(BaseModel):
     password: str = Field(..., min_length=4, max_length=128)
     display_name: str | None = Field(None, max_length=128)
     role: str = Field("user", pattern=r"^(admin|user)$")
+    permissions: list[str] | None = None
+    token_ttl_hours: int | None = Field(None, ge=1, le=8760)
 
 
 class UserOut(BaseModel):
@@ -36,6 +38,8 @@ class UserOut(BaseModel):
     username: str
     display_name: str | None
     role: str
+    permissions: list[str] = []
+    token_ttl_hours: int = 168
     is_active: bool
     created_at: datetime
 
@@ -46,3 +50,5 @@ class UserUpdate(BaseModel):
     is_active: bool | None = None
     role: str | None = Field(None, pattern=r"^(admin|user)$")
     password: str | None = Field(None, min_length=4, max_length=128)
+    permissions: list[str] | None = None
+    token_ttl_hours: int | None = Field(None, ge=1, le=8760)

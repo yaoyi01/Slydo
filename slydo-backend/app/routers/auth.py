@@ -58,12 +58,14 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已被禁用")
 
     token_data = {"sub": str(user.id), "username": user.username, "role": user.role}
-    access_token = create_access_token(token_data)
+    ttl_hours = user.token_ttl_hours or 168
+    access_token = create_access_token(token_data, expires_delta_hours=ttl_hours)
     refresh_token = create_refresh_token(token_data)
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
-        expires_in=86400,
+        token_type="bearer",
+        expires_in=ttl_hours * 3600,
     )
 
 
