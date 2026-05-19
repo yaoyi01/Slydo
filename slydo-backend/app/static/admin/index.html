@@ -449,24 +449,49 @@ async function loadDashboard() {
       }).join('');
     }
 
-    // 模块健康状态
+    // 模块健康状态 — 从 /api/monitor/health 获取
     const healthGrid = document.getElementById('health-grid');
-    const h = data.health || {};
-    const modules = [
-      {name:'PostgreSQL', icon:'🗄️', ok:data.pg_connected!==false, info: `库: ${data.deck_count||0} 文档`},
-      {name:'Qdrant 向量库', icon:'🔍', ok:data.qdrant_points>0, info: `${data.qdrant_points||0} 向量点`},
-      {name:'缩略图服务', icon:'🖼️', ok:data.thumbnail_count>0, info: `${data.thumbnail_count||0} 文件`},
-    ];
-    healthGrid.innerHTML = modules.map(m => `
-      <div class="stat-card">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-          <span style="font-size:20px">${m.icon}</span>
-          <span style="font-weight:600">${m.name}</span>
-          <span style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:${m.ok?'#52c41a':'#ff4d4f'};${m.ok?'box-shadow:0 0 6px #52c41a':''}"></span>
-        </div>
-        <div style="font-size:12px;color:#999">${m.info}</div>
-      </div>
-    `).join('');
+    try {
+      const healthResp = await api('GET', '/api/monitor/health');
+      const comps = healthResp.components || {};
+      const modules = [
+        { name:'PostgreSQL', icon:'🗄️', c: comps.postgresql },
+        { name:'Qdrant 向量库', icon:'🔍', c: comps.qdrant },
+        { name:'Ollama 视觉模型(VL)', icon:'👁️', c: comps.ollama },
+        { name:'Ollama 嵌入服务', icon:'🧩', c: comps.embedding_service },
+        { name:'LibreOffice 渲染', icon:'📄', c: comps.libreoffice },
+        { name:'文件系统 / Wiki', icon:'📁', c: comps.filesystem },
+      ];
+      healthGrid.innerHTML = modules.map(m => {
+        const ok = m.c?.status === 'ok';
+        const detail = m.c?.detail || '';
+        const data = m.c?.data || {};
+        let info = detail || 'normal';
+        if (m.name.startsWith('Ollama 视觉') && data.models) {
+          info = `模型: ${data.models.slice(0,4).join(', ')}`;
+        } else if (m.name.startsWith('Ollama 嵌入') && data.dimension) {
+          info = `维度: ${data.dimension}`;
+        } else if (m.name.startsWith('Qdrant') && data.points !== undefined) {
+          info = `${data.points} 向量点`;
+        } else if (m.name.startsWith('PostgreSQL') && data.decks !== undefined) {
+          info = `${data.decks} 文档 / ${data.slides} 页 / ${data.db_size}`;
+        } else if (m.name.startsWith('LibreOffice') && data.version) {
+          info = data.version;
+        } else if (m.name.startsWith('文件系统') && data.disk_free_gb) {
+          info = `磁盘剩余: ${data.disk_free_gb} GB`;
+        }
+        return `<div class="stat-card">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:20px">${m.icon}</span>
+            <span style="font-weight:600">${m.name}</span>
+            <span style="margin-left:auto;width:12px;height:12px;border-radius:50%;background:${ok?'#52c41a':'#ff4d4f'};${ok?'box-shadow:0 0 6px #52c41a':''}"></span>
+          </div>
+          <div style="font-size:12px;color:#999">${esc(info)}</div>
+        </div>`;
+      }).join('');
+    } catch(e) {
+      healthGrid.innerHTML = '<div class="stat-card" style="grid-column:1/-1;color:#999">健康状态暂不可用</div>';
+    }
   } catch(e) { console.error('Dashboard load error:', e); }
 }
 

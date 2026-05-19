@@ -626,7 +626,8 @@ async def _check_pg() -> dict:
                 "db_size": db_size,
             }
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
@@ -643,7 +644,8 @@ async def _check_qdrant() -> dict:
             "status": str(info.status),
         }
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
@@ -653,7 +655,7 @@ async def _check_ollama() -> dict:
     result = {"status": "error", "detail": "", "data": {}}
     try:
         base = settings.ollama_base_url
-        async with httpx.AsyncClient(timeout=5) as client:
+        async with httpx.AsyncClient(timeout=3) as client:
             r = await client.get(f"{base}/api/tags")
             if r.status_code == 200:
                 models = r.json().get("models", [])
@@ -668,7 +670,8 @@ async def _check_ollama() -> dict:
             else:
                 result["detail"] = f"HTTP {r.status_code}"
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
@@ -687,7 +690,8 @@ async def _check_libreoffice() -> dict:
         else:
             result["detail"] = r.stderr[:100]
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
@@ -734,7 +738,8 @@ async def _check_filesystem() -> dict:
             "watch_pptx_count": pptx_count if watch_dir else 0,
         }
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
@@ -744,7 +749,7 @@ async def _check_embedding_service() -> dict:
     result = {"status": "error", "detail": "", "data": {}}
     try:
         base = settings.ollama_base_url
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=3) as client:
             r = await client.post(f"{base}/api/embed", json={
                 "model": "bge-m3",
                 "input": ["测试嵌入服务"],
@@ -758,19 +763,36 @@ async def _check_embedding_service() -> dict:
             else:
                 result["detail"] = f"HTTP {r.status_code}"
     except Exception as e:
-        result["detail"] = str(e)[:100]
+        err_msg = str(e)[:100] or type(e).__name__
+        result["detail"] = err_msg
     return result
 
 
 @router.get("/api/monitor/health")
 async def monitor_health():
     """获取所有组件健康状态"""
-    pg_result = await _check_pg()
-    qdrant_result = await _check_qdrant()
-    ollama_result = await _check_ollama()
-    lo_result = await _check_libreoffice()
-    fs_result = await _check_filesystem()
-    embed_result = await _check_embedding_service()
+    import asyncio
+    results = await asyncio.gather(
+        _check_pg(),
+        _check_qdrant(),
+        _check_ollama(),
+        _check_libreoffice(),
+        _check_filesystem(),
+        _check_embedding_service(),
+        return_exceptions=True,
+    )
+    pg_result, qdrant_result, ollama_result, lo_result, fs_result, embed_result = results
+
+    # 处理异常（方法内的异常会返回 Exception 对象）
+    def safe(r, default=None):
+        return r if isinstance(r, dict) else (default or {"status": "error", "detail": str(r)[:100], "data": {}})
+
+    pg_result = safe(pg_result)
+    qdrant_result = safe(qdrant_result)
+    ollama_result = safe(ollama_result)
+    lo_result = safe(lo_result)
+    fs_result = safe(fs_result)
+    embed_result = safe(embed_result)
 
     all_ok = all(
         r["status"] == "ok"
