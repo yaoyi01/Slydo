@@ -142,7 +142,13 @@ async def api_delete_deck(deck_id: str):
         if deck_wiki_dir.exists():
             import shutil
             shutil.rmtree(deck_wiki_dir)
-            logger.info(f"[删除] Wiki 文件夹已删除: {deck_wiki_dir}")
+            logger.info(f"[删除] Wiki slides 文件夹已删除: {deck_wiki_dir}")
+
+        # 清理 Wiki decks 文档
+        deck_doc = wiki_root / "decks" / f"deck_{deck_id}.md"
+        if deck_doc.exists():
+            deck_doc.unlink()
+            logger.info(f"[删除] Wiki decks 文档已删除: {deck_doc}")
 
         # 清理缩略图
         deck_thumb_dir = wiki_root / "thumbnails" / f"deck_{deck_id}"
