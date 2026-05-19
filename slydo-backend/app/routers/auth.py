@@ -60,7 +60,7 @@ async def login(data: LoginRequest, db: AsyncSession = Depends(get_db)):
     token_data = {"sub": str(user.id), "username": user.username, "role": user.role}
     ttl_hours = user.token_ttl_hours or 168
     access_token = create_access_token(token_data, expires_delta_hours=ttl_hours)
-    refresh_token = create_refresh_token(token_data)
+    refresh_token = create_refresh_token(token_data, expires_delta_hours=ttl_hours)
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
