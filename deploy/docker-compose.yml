@@ -46,9 +46,12 @@ services:
     environment:
       DATABASE_URL: postgresql://slydo:slydo_docker_2026@postgres:5432/slydo
       JWT_SECRET_KEY: slydo-jwt-secret-deploy-2026
-      DEEPSEEK_API_KEY: ""
+      DEEPSEEK_API_KEY: "sk-87b139f21dc64a728c6a82c437211d24"
       DEEPSEEK_BASE_URL: https://api.deepseek.com/v1
       LLM_MODEL: deepseek-v4-flash
+      DASHSCOPE_API_KEY: "sk-4e9a9e4c670f4693859c9430290a55f2"
+      DASHSCOPE_BASE_URL: https://dashscope.aliyuncs.com/api/v1
+      DASHSCOPE_VISION_MODEL: qwen3-vl-flash
       SLYDO_WIKI_PATH: /data/wiki
       QDRANT_URL: ""
       DEBUG: "false"

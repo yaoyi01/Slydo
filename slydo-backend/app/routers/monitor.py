@@ -649,24 +649,24 @@ async def _check_qdrant() -> dict:
     return result
 
 
-async def _check_ollama() -> dict:
-    """检测 Ollama 服务状态"""
+async def _check_llm_api() -> dict:
+    """检测云端 LLM API（DeepSeek）是否可用"""
     import httpx
     result = {"status": "error", "detail": "", "data": {}}
     try:
-        base = settings.ollama_base_url
-        async with httpx.AsyncClient(timeout=3) as client:
-            r = await client.get(f"{base}/api/tags")
+        base = settings.deepseek_base_url or "https://api.deepseek.com/v1"
+        key = settings.deepseek_api_key or ""
+        model = settings.llm_model or "deepseek-chat"
+        # 简化验证：轻量请求测试连通性
+        async with httpx.AsyncClient(timeout=5) as client:
+            r = await client.post(
+                f"{base}/chat/completions",
+                headers={"Authorization": f"Bearer {key}"},
+                json={"model": model, "messages": [{"role": "user", "content": "ping"}], "max_tokens": 5},
+            )
             if r.status_code == 200:
-                models = r.json().get("models", [])
-                model_names = [m["name"] for m in models if "name" in m]
-                vision_available = any("vl" in m for m in model_names)
                 result["status"] = "ok"
-                result["data"] = {
-                    "models": model_names,
-                    "model_count": len(model_names),
-                    "vision_available": vision_available,
-                }
+                result["data"] = {"model": model, "provider": "DeepSeek"}
             else:
                 result["detail"] = f"HTTP {r.status_code}"
     except Exception as e:
@@ -743,25 +743,32 @@ async def _check_filesystem() -> dict:
     return result
 
 
-async def _check_embedding_service() -> dict:
-    """检测 Ollama 嵌入服务（bge-m3）是否可用"""
+async def _check_vl_api() -> dict:
+    """检测云端视觉模型 API（DeepSeek VL / DashScope Qwen-VL）"""
     import httpx
     result = {"status": "error", "detail": "", "data": {}}
+    # 优先检测 DashScope（阿里云 Qwen-VL），作为视觉 API 的代表
     try:
-        base = settings.ollama_base_url
-        async with httpx.AsyncClient(timeout=3) as client:
-            r = await client.post(f"{base}/api/embed", json={
-                "model": "bge-m3",
-                "input": ["测试嵌入服务"],
-            })
-            if r.status_code == 200:
-                data = r.json()
-                emb_len = len(data.get("embeddings", []))
-                dim = len(data["embeddings"][0]) if emb_len > 0 else 0
-                result["status"] = "ok"
-                result["data"] = {"dimension": dim, "model": "bge-m3"}
-            else:
-                result["detail"] = f"HTTP {r.status_code}"
+        dashscope_key = settings.dashscope_api_key or ""
+        dashscope_base = settings.dashscope_base_url or "https://dashscope.aliyuncs.com/api/v1"
+        vl_model = settings.dashscope_vision_model or "qwen-vl-plus"
+        if dashscope_key:
+            async with httpx.AsyncClient(timeout=5) as client:
+                r = await client.post(
+                    f"{dashscope_base}/services/aigc/multimodal-generation/generation",
+                    headers={"Authorization": f"Bearer {dashscope_key}", "Content-Type": "application/json"},
+                    json={
+                        "model": vl_model,
+                        "input": {"messages": [{"role": "user", "content": [{"text": "ping"}]}]},
+                    },
+                )
+                if r.status_code == 200:
+                    result["status"] = "ok"
+                    result["data"] = {"model": vl_model, "provider": "DashScope/Aliyun"}
+                else:
+                    result["detail"] = f"HTTP {r.status_code}"
+        else:
+            result["detail"] = "未配置 DashScope API Key"
     except Exception as e:
         err_msg = str(e)[:100] or type(e).__name__
         result["detail"] = err_msg
@@ -775,13 +782,13 @@ async def monitor_health():
     results = await asyncio.gather(
         _check_pg(),
         _check_qdrant(),
-        _check_ollama(),
+        _check_llm_api(),
         _check_libreoffice(),
         _check_filesystem(),
-        _check_embedding_service(),
+        _check_vl_api(),
         return_exceptions=True,
     )
-    pg_result, qdrant_result, ollama_result, lo_result, fs_result, embed_result = results
+    pg_result, qdrant_result, llm_result, lo_result, fs_result, vl_result = results
 
     # 处理异常（方法内的异常会返回 Exception 对象）
     def safe(r, default=None):
@@ -789,14 +796,14 @@ async def monitor_health():
 
     pg_result = safe(pg_result)
     qdrant_result = safe(qdrant_result)
-    ollama_result = safe(ollama_result)
+    llm_result = safe(llm_result)
     lo_result = safe(lo_result)
     fs_result = safe(fs_result)
-    embed_result = safe(embed_result)
+    vl_result = safe(vl_result)
 
     all_ok = all(
         r["status"] == "ok"
-        for r in [pg_result, qdrant_result, ollama_result, lo_result, fs_result, embed_result]
+        for r in [pg_result, qdrant_result, llm_result, lo_result, fs_result, vl_result]
     )
 
     return {
@@ -805,9 +812,9 @@ async def monitor_health():
         "components": {
             "postgresql": pg_result,
             "qdrant": qdrant_result,
-            "ollama": ollama_result,
+            "llm_api": llm_result,
             "libreoffice": lo_result,
             "filesystem": fs_result,
-            "embedding_service": embed_result,
+            "vl_api": vl_result,
         },
     }

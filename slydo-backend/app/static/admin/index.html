@@ -457,8 +457,8 @@ async function loadDashboard() {
       const modules = [
         { name:'PostgreSQL', icon:'🗄️', c: comps.postgresql },
         { name:'Qdrant 向量库', icon:'🔍', c: comps.qdrant },
-        { name:'Ollama 视觉模型(VL)', icon:'👁️', c: comps.ollama },
-        { name:'Ollama 嵌入服务', icon:'🧩', c: comps.embedding_service },
+        { name:'DeepSeek LLM API', icon:'🤖', c: comps.llm_api },
+        { name:'DashScope VL 视觉', icon:'👁️', c: comps.vl_api },
         { name:'LibreOffice 渲染', icon:'📄', c: comps.libreoffice },
         { name:'文件系统 / Wiki', icon:'📁', c: comps.filesystem },
       ];
@@ -467,10 +467,10 @@ async function loadDashboard() {
         const detail = m.c?.detail || '';
         const data = m.c?.data || {};
         let info = detail || 'normal';
-        if (m.name.startsWith('Ollama 视觉') && data.models) {
-          info = `模型: ${data.models.slice(0,4).join(', ')}`;
-        } else if (m.name.startsWith('Ollama 嵌入') && data.dimension) {
-          info = `维度: ${data.dimension}`;
+        if (m.name.includes('DeepSeek') && data.model) {
+          info = `模型: ${data.model} (${data.provider})`;
+        } else if (m.name.includes('DashScope') && data.model) {
+          info = `模型: ${data.model} (${data.provider})`;
         } else if (m.name.startsWith('Qdrant') && data.points !== undefined) {
           info = `${data.points} 向量点`;
         } else if (m.name.startsWith('PostgreSQL') && data.decks !== undefined) {
