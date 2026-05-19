@@ -568,11 +568,12 @@ async def monitor_stats():
 
     # ── 磁盘占用 ───────────────────────────────────────
     qdrant_dir = Path(settings.qdrant_path).expanduser()
-    disk_qdrant = _format_size(_get_dir_size(qdrant_dir))
-    disk_wiki = _format_size(_get_dir_size(wiki_root / "slides"))
-    disk_thumbnails = _format_size(_get_dir_size(thumb_dir))
-    # PG 磁盘 → 近似估算
-    disk_pg = _format_size(_get_dir_size(Path("/var/lib/postgresql/16/main"))) if Path("/var/lib/postgresql/16/main").exists() else _get_dir_size(Path("/var/lib/postgresql/15/main")) if Path("/var/lib/postgresql/15/main").exists() else "—"
+    disk_qdrant = _format_size(_get_dir_size(qdrant_dir)) if qdrant_dir.exists() else "—"
+    disk_wiki = _format_size(_get_dir_size(wiki_root / "slides")) if (wiki_root / "slides").exists() else "—"
+    disk_thumbnails = _format_size(_get_dir_size(thumb_dir)) if thumb_dir.exists() else "—"
+    # PG 磁盘 → 近似估算，Docker 容器内不可见则跳过
+    pg_dir = Path("/var/lib/postgresql/16/main")
+    disk_pg = _format_size(_get_dir_size(pg_dir)) if pg_dir.exists() else "—"
     if disk_pg == "0 B":
         disk_pg = "—"
 
