@@ -26,6 +26,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"[Slydo] 数据库初始化失败: {e}")
 
+    # 初始化 Qdrant collection
+    from app.qdrant import init_qdrant
+    try:
+        await init_qdrant()
+        print("[Slydo] Qdrant 已就绪")
+    except Exception as e:
+        print(f"[Slydo] Qdrant 初始化失败: {e}")
+
     # 初始化默认管理员
     from app.init_admin import ensure_admin
     try:
