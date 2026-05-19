@@ -166,9 +166,7 @@ tr:hover td { background: #f0f5ff; }
       </div>
       <div class="card">
         <h2>磁盘用量</h2>
-        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px" id="disk-grid">
-          <div class="stat-card"><div class="num">-</div><div class="label">PG 数据库</div></div>
-          <div class="stat-card"><div class="num">-</div><div class="label">Qdrant</div></div>
+        <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px" id="disk-grid">
           <div class="stat-card"><div class="num">-</div><div class="label">Wiki</div></div>
           <div class="stat-card"><div class="num">-</div><div class="label">缩略图</div></div>
         </div>
@@ -177,7 +175,7 @@ tr:hover td { background: #f0f5ff; }
         <h2>各文档入库状态</h2>
         <table>
           <thead>
-            <tr><th>文档名称</th><th style="text-align:center">页面数</th><th style="text-align:center">版本</th><th style="text-align:center">视觉</th><th style="text-align:center">缩略图</th><th style="text-align:center">Wiki</th></tr>
+            <tr><th>文档名称</th><th style="text-align:center">页面数</th><th style="text-align:center">版本</th><th style="text-align:center">向量点</th><th style="text-align:center">视觉</th><th style="text-align:center">缩略图</th><th style="text-align:center">Wiki</th></tr>
           </thead>
           <tbody id="dashboard-deck-table"></tbody>
         </table>
@@ -471,8 +469,6 @@ async function loadDashboard() {
 
     // 磁盘用量
     document.getElementById('disk-grid').innerHTML = `
-      <div class="stat-card"><div class="num">${data.disk_pg||'-'}</div><div class="label">💾 PG 数据库</div></div>
-      <div class="stat-card"><div class="num">${data.disk_qdrant||'-'}</div><div class="label">💾 Qdrant</div></div>
       <div class="stat-card"><div class="num">${data.disk_wiki||'-'}</div><div class="label">💾 Wiki</div></div>
       <div class="stat-card"><div class="num">${data.disk_thumbnails||'-'}</div><div class="label">💾 缩略图</div></div>
     `;
@@ -481,7 +477,7 @@ async function loadDashboard() {
     const deckTbody = document.getElementById('dashboard-deck-table');
     const decks = data.decks || [];
     if (decks.length === 0) {
-      deckTbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999">暂无数据</td></tr>';
+      deckTbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999">暂无数据</td></tr>';
     } else {
       deckTbody.innerHTML = decks.map(d => {
         const visionPct = d.vision_ready ? 100 : (d.vision_progress || 0);
@@ -490,6 +486,7 @@ async function loadDashboard() {
           <td>${esc(d.title||'未命名')}</td>
           <td style="text-align:center">${d.slide_count||0}</td>
           <td style="text-align:center">v${d.version||1}</td>
+          <td style="text-align:center"><span class="badge ${d.embed_points>0?'badge-active':'badge-disabled'}">${d.embed_points||0}</span></td>
           <td style="text-align:center"><span class="badge ${visionPct>=100?'badge-active':'badge-disabled'}">${visionPct}%</span></td>
           <td style="text-align:center"><span class="badge ${thumbPct>=100?'badge-active':'badge-disabled'}">${thumbPct}%</span></td>
           <td style="text-align:center"><span class="badge ${d.wiki_ready?'badge-active':'badge-disabled'}">${d.wiki_ready?'✅':'❌'}</span></td>

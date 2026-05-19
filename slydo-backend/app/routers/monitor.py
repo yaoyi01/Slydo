@@ -475,21 +475,26 @@ async def monitor_stats():
                 LIMIT 50
             """))
 
-            # 预先查询 Qdrant 中有哪些 deck
+            # 预先查询 Qdrant 中有哪些 deck 以及每个 deck 的点数
             qdrant_deck_ids: set[str] = set()
+            qdrant_deck_points: dict[str, int] = {}
             try:
                 qdrant = get_qdrant()
-                # Qdrant 不支持直接查所有 deck_id，用 scroll 采样
+                # Qdrant scroll 采样查询
                 scroll_result = qdrant.scroll(
                     collection_name=COLLECTION_NAME,
                     limit=10000,
                     with_payload=["deck_id"],
                     with_vectors=False,
                 )
+                from collections import Counter
+                deck_counter: Counter = Counter()
                 for point in scroll_result[0]:
                     did = point.payload.get("deck_id", "")
                     if did:
                         qdrant_deck_ids.add(did)
+                        deck_counter[did] += 1
+                qdrant_deck_points = dict(deck_counter)
             except Exception:
                 pass
 
@@ -524,6 +529,7 @@ async def monitor_stats():
                     # 向量
                     "embed_ready": has_qdrant,
                     "embed_progress": 100 if has_qdrant else 0,
+                    "embed_points": qdrant_deck_points.get(deck_id_str, 0) if has_qdrant else 0,
                     # 视觉
                     "vision_ready": sc > 0 and vision_count == sc,
                     "vision_progress": vision_pct,
