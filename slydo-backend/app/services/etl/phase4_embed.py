@@ -26,25 +26,50 @@ FALLBACK_VECTOR_SIZE = 1024
 
 async def embed_text(text: str) -> list[float]:
     """
-    调用嵌入服务生成向量。
+    调用 DashScope（通义千问）嵌入 API 生成向量。
 
-    优先使用 Ollama bge-m3（settings.ollama_base_url），
-    如果不可用则返回零向量并记录警告。
+    使用 text-embedding-v3 模型（1024 维，通过 text-embedding-v2 返回 1536 维）。
+    通过 settings.dashscope_base_url 和 settings.dashscope_api_key 配置。
     """
     try:
-        url = f"{settings.ollama_base_url}/api/embed"
-        payload = {"model": "bge-m3", "input": [text]}
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
+        api_url = settings.dashscope_base_url or "https://dashscope.aliyuncs.com/api/v1"
+        api_key = settings.dashscope_api_key or ""
+
+        if not api_key:
+            raise ValueError("未配置 DashScope API Key")
+
+        embed_url = f"{api_url}/services/embeddings/text-embedding/text-embedding"
+        payload = {
+            "model": "text-embedding-v3",
+            "input": {"texts": [text]},
+        }
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                embed_url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            if response.status_code != 200:
+                raise ValueError(f"API 返回 {response.status_code}: {response.text[:200]}")
             data = response.json()
-        embeddings = data.get("embeddings", [])
-        if embeddings:
-            return embeddings[0]
-        raise ValueError("嵌入服务返回空数据")
+
+        # 解析 DashScope 嵌入响应
+        embedding = None
+        output = data.get("output", {})
+        embeddings_list = output.get("embeddings", [])
+        if embeddings_list:
+            embedding = embeddings_list[0].get("embedding", [])
+        if not embedding:
+            raise ValueError(f"嵌入服务返回空结果")
+
+        # text-embedding-v3 返回 1024 维（与 Qdrant collection 一致）
+        return embedding
     except Exception as e:
-        logger.warning(f"嵌入服务不可用（使用零向量降级）: {e}")
-        return [0.0] * FALLBACK_VECTOR_SIZE
+        logger.warning(f"[Embed] DashScope 嵌入失败（使用零向量降级）: {e}")
+        return [0.0] * 1024
 
 
 def build_embedding_text(slide: dict[str, Any]) -> str:
