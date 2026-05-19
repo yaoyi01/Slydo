@@ -181,6 +181,26 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
             pass
         logger.info(f"  缩略图迁移: {thumb_final_dir}")
 
+        # 更新数据库中的缩略图路径
+        for s in slides:
+            tp = s.get("thumbnail_path", "")
+            idx = s.get("slide_index", 0)
+            if tp and str(tp).startswith(str(thumb_temp_dir)):
+                s["thumbnail_path"] = str(thumb_final_dir / f"slide_{idx:03d}.png")
+
+    # 批量 UPDATE 缩略图路径到数据库
+    async with async_session_factory() as session:
+        for s in slides:
+            tp = s.get("thumbnail_path", "")
+            idx = s.get("slide_index", 0)
+            if tp:
+                await session.execute(
+                    text("UPDATE slides SET thumbnail_path = :path WHERE deck_id = CAST(:deck_id AS uuid) AND slide_index = :idx"),
+                    {"path": tp, "deck_id": deck_id, "idx": idx},
+                )
+        await session.commit()
+        logger.info(f"  缩略图路径已更新到数据库 ({len(slides)} 条)")
+
     # ── Phase 4: 向量嵌入（仅未跳过时执行） ──────────
     if not skip_embed:
         from app.services.etl.phase4_embed import embed_to_qdrant
