@@ -103,7 +103,9 @@ async def upload_pptx(
 
     # 获取信号量：限制并发上传数，避免多文件同时写盘压满 IO
     # 超过限制时阻塞等待，前端会看到上传进度卡住
-    acquired = await asyncio.wait_for(_upload_semaphore.acquire(), timeout=300)
+    # 超时时间由 UPLOAD_QUEUE_TIMEOUT 环境变量配置（默认 600s）
+    queue_timeout = settings.upload_queue_timeout
+    acquired = await asyncio.wait_for(_upload_semaphore.acquire(), timeout=queue_timeout)
     try:
         return await _do_upload(file)
     finally:
@@ -198,7 +200,7 @@ async def _do_upload(file: UploadFile) -> dict:
     except HTTPException:
         raise
     except asyncio.TimeoutError:
-        raise HTTPException(status_code=503, detail="服务器繁忙，请稍后重试")
+        raise HTTPException(status_code=503, detail="服务器繁忙（上传排队超时），请等待当前上传完成后重试，或增大 UPLOAD_QUEUE_TIMEOUT 配置")
     except Exception as e:
         logger.error(f"上传失败: {e}")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
