@@ -328,6 +328,14 @@ function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').re
 
 const _uploadTasks = {};  // { taskId: { filename, el, fillEl, statusEl } }
 
+// 前端并发控制：同时最多发 N 个 XHR（与后端 UPLOAD_CONCURRENCY 对齐）
+// 避免所有文件一次性发出导致后端排队积压、Nginx 超时
+const UPLOAD_CONCURRENCY_FRONTEND = 2;
+
+// 上传队列 + 活跃数追踪
+const _uploadQueue = [];  // { file, taskId, row, fillEl, statusEl }
+let _uploadActiveCount = 0;
+
 function uploadFiles(input) {
   const files = input.files; if (!files || files.length === 0) return;
   const zone = document.getElementById('upload-zone');
@@ -335,30 +343,62 @@ function uploadFiles(input) {
   // 隐藏初始提示，显示文件列表区域
   zone.style.display = 'none';
 
+  // 将文件加入队列
   for (const file of files) {
-    _startSingleUpload(file);
+    _enqueueUpload(file);
   }
 
   input.value = '';
 }
 
-function _startSingleUpload(file) {
+function _enqueueUpload(file) {
   const container = document.getElementById('upload-tasks');
   const taskId = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
 
-  // 创建独立行
+  // 创建独立行，初始显示"等待中"
   const row = document.createElement('div');
   row.className = 'upload-task';
   row.id = taskId + '_row';
   row.innerHTML = `
     <span class="task-name" title="${esc(file.name)}">${esc(file.name)}</span>
-    <div class="task-bar"><span class="task-fill" style="width:0%;background:#1890ff"></span></div>
-    <span class="task-status" style="color:#999">0%</span>
+    <div class="task-bar"><span class="task-fill" style="width:0%;background:#d9d9d9"></span></div>
+    <span class="task-status" style="color:#999;font-size:11px">⏳ 等待中...</span>
   `;
   container.prepend(row);
 
   const fillEl = row.querySelector('.task-fill');
   const statusEl = row.querySelector('.task-status');
+
+  _uploadQueue.push({ file, taskId, row, fillEl, statusEl });
+  _tryDequeue();
+}
+
+function _tryDequeue() {
+  while (_uploadActiveCount < UPLOAD_CONCURRENCY_FRONTEND && _uploadQueue.length > 0) {
+    const item = _uploadQueue.shift();
+    _uploadActiveCount++;
+    // 更新状态为"准备上传"
+    item.fillEl.style.background = '#1890ff';
+    item.statusEl.textContent = '0%';
+    item.statusEl.style.fontSize = '12px';
+    _startSingleUpload(item);
+  }
+}
+
+function _onUploadDone(filename) {
+  _uploadActiveCount--;
+  _tryDequeue();
+  // 检查是否所有任务已完成，恢复上传区域
+  if (_uploadActiveCount === 0 && _uploadQueue.length === 0 && Object.keys(_uploadTasks).length === 0) {
+    document.getElementById('upload-zone').style.display = 'block';
+  }
+}
+
+_singleUploadXhrPool = {};  // { taskId: xhr }
+
+function _startSingleUpload(item) {
+  const { file, taskId, row, fillEl, statusEl } = item;
+  const container = document.getElementById('upload-tasks');
 
   _uploadTasks[taskId] = { filename: file.name, row, fillEl, statusEl, xhr: null };
 
@@ -366,6 +406,7 @@ function _startSingleUpload(file) {
   formData.append('file', file);
 
   const xhr = new XMLHttpRequest();
+  _singleUploadXhrPool[taskId] = xhr;
   _uploadTasks[taskId].xhr = xhr;
 
   xhr.open('POST', getApiBase() + '/api/ingest/upload', true);
@@ -381,6 +422,7 @@ function _startSingleUpload(file) {
   };
 
   xhr.onload = function() {
+    delete _singleUploadXhrPool[taskId];
     try {
       const data = JSON.parse(xhr.responseText);
       if (data.status === 'ok') {
@@ -396,11 +438,13 @@ function _startSingleUpload(file) {
         statusEl.textContent = '⏭️ 已跳过（重复）';
         statusEl.style.color = '#faad14';
         _autoRemoveTask(taskId, 4000);
+        _onUploadDone(file.name);
       } else {
         fillEl.style.width = '100%';
         fillEl.style.background = '#ff4d4f';
         statusEl.textContent = '❌ ' + (data.detail||'上传失败').substring(0,20);
         statusEl.style.color = '#ff4d4f';
+        _onUploadDone(file.name);
         _autoRemoveTask(taskId, 4000);
       }
     } catch(e) {
@@ -408,18 +452,21 @@ function _startSingleUpload(file) {
       fillEl.style.background = '#ff4d4f';
       statusEl.textContent = '❌ 上传失败 (HTTP ' + xhr.status + ')';
       statusEl.style.color = '#ff4d4f';
+      _onUploadDone(file.name);
       // 上传级错误也保留不消失
-      task.row.style.borderBottom = '2px solid #ff4d4f';
-      task.row.style.background = '#fff2f0';
+      row.style.borderBottom = '2px solid #ff4d4f';
+      row.style.background = '#fff2f0';
     }
   };
 
   xhr.onerror = function() {
+    delete _singleUploadXhrPool[taskId];
     fillEl.style.background = '#ff4d4f';
     statusEl.textContent = '❌ 网络错误';
     statusEl.style.color = '#ff4d4f';
-    task.row.style.borderBottom = '2px solid #ff4d4f';
-    task.row.style.background = '#fff2f0';
+    row.style.borderBottom = '2px solid #ff4d4f';
+    row.style.background = '#fff2f0';
+    _onUploadDone(file.name);
   };
 
   xhr.send(formData);
@@ -488,7 +535,7 @@ function _autoRemoveTask(taskId, delayMs) {
       task.row.remove();
       delete _uploadTasks[taskId];
       // 检查是否所有任务已清空，恢复上传区域
-      if (Object.keys(_uploadTasks).length === 0) {
+      if (_uploadActiveCount === 0 && _uploadQueue.length === 0 && Object.keys(_uploadTasks).length === 0) {
         document.getElementById('upload-zone').style.display = 'block';
       }
     }, 500);
