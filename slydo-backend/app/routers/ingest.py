@@ -18,16 +18,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/ingest", tags=["文件上传"], dependencies=[Depends(get_current_user)])
 
 # ── 并发控制 ─────────────────────────────────────────
-# 上传信号量：限制同时处理的文件上传数（含去重查询+写盘）
-# 避免多文件并行上传时压满磁盘 IO
-# 通过 UPLOAD_CONCURRENCY env 变量配置（默认 2）
-UPLOAD_SEMAPHORE_MAX = settings.upload_concurrency
-_upload_semaphore = asyncio.Semaphore(UPLOAD_SEMAPHORE_MAX)
-
-# 入库队列 + worker：替代直接 create_task，让入库任务排队串行执行
-# 队列中的任务会逐个执行，避免多个 LibreOffice 实例同时读盘
-_ingest_queue: asyncio.Queue[tuple[Path, str]] = asyncio.Queue()
-_ingest_queue_worker_running = False
+# 入库信号量：限制同时运行的入库任务数（磁盘密集操作：LibreOffice、python-pptx、pdf2image）
+# 上传本身（网络接收+写盘）不限并发，只有入库阶段才受限制
+# 通过 INGEST_CONCURRENCY env 变量配置（默认 2）
+INGEST_SEMAPHORE_MAX = getattr(settings, 'ingest_concurrency', 2)
+_ingest_semaphore = asyncio.Semaphore(INGEST_SEMAPHORE_MAX)
 
 # 监控目录（watcher 监听的目标）
 WATCH_DIR = Path.home() / ".slydo" / "watch"
@@ -40,32 +35,6 @@ ingest_tasks: dict[str, dict] = {}
 _cleanup_task: asyncio.Task | None = None
 
 TASK_CLEANUP_DELAY = 60  # 完成后 60 秒自动删除
-
-
-async def _ingest_queue_worker():
-    """入库队列工作线程：逐个取出队列中的文件执行入库"""
-    global _ingest_queue_worker_running
-    _ingest_queue_worker_running = True
-    logger.info("[ingest_queue] 入库队列 worker 已启动")
-    try:
-        while True:
-            file_path, task_id = await _ingest_queue.get()
-            try:
-                await _run_ingest(file_path, task_id)
-            except Exception as e:
-                logger.error(f"[ingest_queue] 入库异常: {e}", exc_info=True)
-                task = ingest_tasks.get(task_id)
-                if task:
-                    task["status"] = "failed"
-                    task["detail"] = f"❌ 入库失败"
-                    task["error"] = str(e)
-                    task["_finished_at"] = time.time()
-            finally:
-                _ingest_queue.task_done()
-    except asyncio.CancelledError:
-        logger.info("[ingest_queue] worker 已停止")
-    finally:
-        _ingest_queue_worker_running = False
 
 
 def _cleanup_finished_tasks():
@@ -101,19 +70,12 @@ async def upload_pptx(
     if not file.filename or not file.filename.lower().endswith((".ppt", ".pptx")):
         raise HTTPException(status_code=400, detail="仅支持 PPT/PPTX 文件")
 
-    # 获取信号量：限制并发上传数，避免多文件同时写盘压满 IO
-    # 超过限制时阻塞等待，前端会看到上传进度卡住
-    # 超时时间由 UPLOAD_QUEUE_TIMEOUT 环境变量配置（默认 600s）
-    queue_timeout = settings.upload_queue_timeout
-    acquired = await asyncio.wait_for(_upload_semaphore.acquire(), timeout=queue_timeout)
-    try:
-        return await _do_upload(file)
-    finally:
-        _upload_semaphore.release()
+    # 上传不限并发，直接处理（只涉及网络接收+写盘，不占磁盘读带宽）
+    return await _do_upload(file)
 
 
 async def _do_upload(file: UploadFile) -> dict:
-    """实际执行上传的核心逻辑（受信号量保护）"""
+    """实际执行上传的核心逻辑"""
     # 确保监控目录存在
     WATCH_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -179,17 +141,12 @@ async def _do_upload(file: UploadFile) -> dict:
             dest_path = safe_path
             logger.info(f"文件已重命名为: {safe_path.name}")
 
-        # 确保队列 worker 正在运行
-        global _ingest_queue_worker_running
-        if not _ingest_queue_worker_running:
-            asyncio.create_task(_ingest_queue_worker())
-
-        # 将入库任务提交到队列（串行执行）
-        await _ingest_queue.put((dest_path, task_id))
+        # 触发入库（后台异步执行，通过信号量限制并发）
+        asyncio.create_task(_run_ingest_with_semaphore(dest_path, task_id))
 
         return {
             "status": "ok",
-            "detail": f"文件 {file.filename} 已上传，入库任务已入队（队列位置 #{_ingest_queue.qsize()}）",
+            "detail": f"文件 {file.filename} 已上传，入库任务已触发",
             "data": {
                 "task_id": task_id,
                 "filename": dest_path.name,
@@ -199,8 +156,6 @@ async def _do_upload(file: UploadFile) -> dict:
         }
     except HTTPException:
         raise
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=503, detail="服务器繁忙（上传排队超时），请等待当前上传完成后重试，或增大 UPLOAD_QUEUE_TIMEOUT 配置")
     except Exception as e:
         logger.error(f"上传失败: {e}")
         raise HTTPException(status_code=500, detail=f"上传失败: {str(e)}")
@@ -252,6 +207,12 @@ async def delete_watch_file(
     return {"status": "ok", "detail": f"已删除: {name}"}
 
 
+async def _run_ingest_with_semaphore(file_path: Path, task_id: str):
+    """带信号量的入库执行器：获取信号量后进行入库，限制并发数"""
+    async with _ingest_semaphore:
+        await _run_ingest(file_path, task_id)
+
+
 async def _run_ingest(file_path: Path, task_id: str):
     """后台执行入库，更新任务状态"""
     task = ingest_tasks.get(task_id)
@@ -268,7 +229,11 @@ async def _run_ingest(file_path: Path, task_id: str):
         # 更新状态为入库中
         task["status"] = "ingesting"
         task["progress_pct"] = 100
-        task["detail"] = "⏳ 等待其他入库任务完成...（串行处理）"
+        active_ingest = INGEST_SEMAPHORE_MAX - _ingest_semaphore._value
+        if active_ingest > 1:
+            task["detail"] = f"⏳ 等待其他入库任务完成...（{active_ingest-1} 个文件正在处理）"
+        else:
+            task["detail"] = "⏳ 等待其他入库任务完成..."
 
         from watcher import handle_created
         

@@ -39,6 +39,7 @@ class Settings(BaseSettings):
     # 并发控制
     upload_concurrency: int = 2  # 同时最多处理 N 个文件的上传（含去重+写盘）
     upload_queue_timeout: int = 600  # 上传排队超时秒数（大文件多时可调大）
+    ingest_concurrency: int = 2  # 同时最多允许 N 个入库任务（磁盘密集操作，LibreOffice/pdf2image等）
 
     # JWT
     jwt_secret_key: str = ""
