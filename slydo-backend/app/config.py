@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     app_name: str = "Slydo"
     debug: bool = False
 
+    # 并发控制
+    upload_concurrency: int = 2  # 同时最多处理 N 个文件的上传（含去重+写盘）
+
     # JWT
     jwt_secret_key: str = ""
 

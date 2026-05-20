@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
 
 from app.routers.auth import get_current_user
 from app.models.user import User
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ router = APIRouter(prefix="/api/ingest", tags=["文件上传"], dependencies=[De
 # ── 并发控制 ─────────────────────────────────────────
 # 上传信号量：限制同时处理的文件上传数（含去重查询+写盘）
 # 避免多文件并行上传时压满磁盘 IO
-UPLOAD_SEMAPHORE_MAX = 2  # 同时最多处理 2 个文件的上传
+# 通过 UPLOAD_CONCURRENCY env 变量配置（默认 2）
+UPLOAD_SEMAPHORE_MAX = settings.upload_concurrency
 _upload_semaphore = asyncio.Semaphore(UPLOAD_SEMAPHORE_MAX)
 
 # 入库队列 + worker：替代直接 create_task，让入库任务排队串行执行
