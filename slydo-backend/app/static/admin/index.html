@@ -54,6 +54,14 @@ tr:hover td { background: #f0f5ff; }
 .upload-zone .icon { font-size: 48px; color: #ccc; }
 .upload-progress { display: inline-block; margin-left: 8px; }
 .file-input { display: none; }
+/* 上传任务列表 */
+.upload-task { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; transition: opacity .5s, transform .5s; }
+.upload-task:last-child { border-bottom: none; }
+.upload-task .task-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.upload-task .task-bar { width: 160px; height: 8px; background: #f0f0f0; border-radius: 4px; flex-shrink: 0; }
+.upload-task .task-bar .task-fill { display: block; height: 100%; border-radius: 4px; transition: width .3s; }
+.upload-task .task-status { width: 110px; text-align: right; font-size: 12px; flex-shrink: 0; }
+.upload-task.done { opacity: 0; transform: translateX(20px); pointer-events: none; }
 .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
 .stat-card { background: #fff; border-radius: 8px; padding: 20px; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 .stat-card .num { font-size: 32px; font-weight: 700; color: #1a1a2e; }
@@ -101,12 +109,15 @@ tr:hover td { background: #f0f5ff; }
     <div id="tab-upload" class="tab-content active">
       <div class="card">
         <h2>上传 PPT/PPTX 文件</h2>
-        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()">
+        <div class="upload-zone" id="upload-zone">
           <div class="icon">📄</div>
-          <p style="font-size:16px;color:#666">点击选择文件或拖拽到此处</p>
-          <p>支持 .ppt / .pptx 格式，最大 100MB</p>
+          <p style="font-size:16px;color:#666">将文件拖拽到此处（可一次拖多个）</p>
+          <p style="font-size:13px;color:#999;margin-top:4px">或 <a href="javascript:;" onclick="document.getElementById('file-input').click()" style="color:#1890ff">点击选择文件</a>（支持 Ctrl/Shift 多选）</p>
+          <p style="font-size:12px;color:#bbb">支持 .ppt / .pptx 格式，最大 100MB/个</p>
         </div>
-        <input type="file" id="file-input" class="file-input" accept=".ppt,.pptx" onchange="uploadFile(this)">
+        <input type="file" id="file-input" class="file-input" accept=".ppt,.pptx" onchange="uploadFiles(this)" multiple>
+        <!-- 上传任务列表：每个文件独立一行展示进度 -->
+        <div id="upload-tasks"></div>
         <div id="upload-status" class="info-msg"></div>
       </div>
       <div class="card">
@@ -313,57 +324,178 @@ function switchTab(id) {
 
 function esc(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-// ═══ 上传文件 ═══
+// ═══ 上传文件（多文件独立进度展示） ═══
 
-function uploadFile(input) {
-  const file = input.files[0]; if (!file) return;
+const _uploadTasks = {};  // { taskId: { filename, el, fillEl, statusEl } }
+
+function uploadFiles(input) {
+  const files = input.files; if (!files || files.length === 0) return;
   const zone = document.getElementById('upload-zone');
-  const status = document.getElementById('upload-status');
+
+  // 隐藏初始提示，显示文件列表区域
   zone.style.display = 'none';
-  status.innerHTML = '📤 上传中 <span id="upload-progress-bar" style="display:inline-block;width:200px;height:8px;background:#f0f0f0;border-radius:4px;vertical-align:middle;margin-left:8px"><span id="upload-progress-fill" style="display:block;width:0%;height:100%;background:#1890ff;border-radius:4px;transition:width .3s"></span></span> <span id="upload-progress-text" style="font-size:12px;color:#999">0%</span>';
+
+  for (const file of files) {
+    _startSingleUpload(file);
+  }
+
+  input.value = '';
+}
+
+function _startSingleUpload(file) {
+  const container = document.getElementById('upload-tasks');
+  const taskId = 'up_' + Date.now() + '_' + Math.random().toString(36).slice(2,6);
+
+  // 创建独立行
+  const row = document.createElement('div');
+  row.className = 'upload-task';
+  row.id = taskId + '_row';
+  row.innerHTML = `
+    <span class="task-name" title="${esc(file.name)}">${esc(file.name)}</span>
+    <div class="task-bar"><span class="task-fill" style="width:0%;background:#1890ff"></span></div>
+    <span class="task-status" style="color:#999">0%</span>
+  `;
+  container.prepend(row);
+
+  const fillEl = row.querySelector('.task-fill');
+  const statusEl = row.querySelector('.task-status');
+
+  _uploadTasks[taskId] = { filename: file.name, row, fillEl, statusEl, xhr: null };
 
   const formData = new FormData();
   formData.append('file', file);
 
   const xhr = new XMLHttpRequest();
+  _uploadTasks[taskId].xhr = xhr;
+
   xhr.open('POST', getApiBase() + '/api/ingest/upload', true);
   xhr.setRequestHeader('Authorization', `Bearer ${token}`);
 
   xhr.upload.onprogress = function(e) {
     if (e.lengthComputable) {
       const pct = Math.round(e.loaded / e.total * 100);
-      document.getElementById('upload-progress-fill').style.width = pct + '%';
-      document.getElementById('upload-progress-text').textContent = pct + '%';
+      fillEl.style.width = pct + '%';
+      fillEl.style.background = '#1890ff';
+      statusEl.textContent = pct + '%';
     }
   };
 
   xhr.onload = function() {
-    zone.style.display = 'block';
     try {
       const data = JSON.parse(xhr.responseText);
       if (data.status === 'ok') {
-        status.innerHTML = `<span class="success-msg">✅ ${data.detail}</span>`;
-        setStatus(`文件已上传: ${file.name}`,'success');
-        loadWatchFiles();
+        fillEl.style.width = '100%';
+        fillEl.style.background = '#52c41a';
+        statusEl.textContent = '✅ 上传完成';
+        statusEl.style.color = '#52c41a';
+        // 开始轮询入库状态
+        _pollIngestTask(taskId, data.data?.task_id);
+      } else if (data.status === 'skipped') {
+        fillEl.style.width = '100%';
+        fillEl.style.background = '#faad14';
+        statusEl.textContent = '⏭️ 已跳过（重复）';
+        statusEl.style.color = '#faad14';
+        _autoRemoveTask(taskId, 4000);
       } else {
-        status.innerHTML = `<span class="error-msg">❌ ${data.detail||'上传失败'}</span>`;
+        fillEl.style.width = '100%';
+        fillEl.style.background = '#ff4d4f';
+        statusEl.textContent = '❌ ' + (data.detail||'上传失败').substring(0,20);
+        statusEl.style.color = '#ff4d4f';
+        _autoRemoveTask(taskId, 4000);
       }
     } catch(e) {
-      status.innerHTML = `<span class="error-msg">❌ 上传失败 (HTTP ${xhr.status})</span>`;
+      fillEl.style.width = '100%';
+      fillEl.style.background = '#ff4d4f';
+      statusEl.textContent = '❌ 上传失败 (HTTP ' + xhr.status + ')';
+      statusEl.style.color = '#ff4d4f';
+      // 上传级错误也保留不消失
+      task.row.style.borderBottom = '2px solid #ff4d4f';
+      task.row.style.background = '#fff2f0';
     }
   };
 
   xhr.onerror = function() {
-    zone.style.display = 'block';
-    status.innerHTML = `<span class="error-msg">❌ 网络错误，上传失败</span>`;
+    fillEl.style.background = '#ff4d4f';
+    statusEl.textContent = '❌ 网络错误';
+    statusEl.style.color = '#ff4d4f';
+    task.row.style.borderBottom = '2px solid #ff4d4f';
+    task.row.style.background = '#fff2f0';
   };
 
   xhr.send(formData);
-  input.value = '';
 }
 
-// ═══ 监控目录文件列表 ═══
+async function _pollIngestTask(taskId, backendTaskId) {
+  if (!backendTaskId) return;
+  const task = _uploadTasks[taskId];
+  if (!task) return;
 
+  for (let i = 0; i < 300; i++) { // 最多轮询 300 次（约 15 分钟）
+    await _sleep(3000);
+    try {
+      const resp = await fetch(getApiBase() + '/api/ingest/tasks', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json();
+      const bt = (data.tasks || []).find(t => t.task_id === backendTaskId);
+      if (!bt) {
+        // 任务已从后端清理（60s 后消失），认为完成
+        task.statusEl.textContent = '✅ 入库完成';
+        task.statusEl.style.color = '#52c41a';
+        task.fillEl.style.width = '100%';
+        task.fillEl.style.background = '#52c41a';
+        _autoRemoveTask(taskId, 3000);
+        return;
+      }
+
+      if (bt.status === 'ingesting') {
+        task.statusEl.textContent = bt.detail || '⏳ 入库中...';
+        task.statusEl.style.color = '#1890ff';
+        task.fillEl.style.background = '#1890ff';
+        // 入库中渐变条
+        task.fillEl.style.background = 'linear-gradient(90deg, #1890ff 30%, #40a9ff 70%, #1890ff 100%)';
+        task.fillEl.style.width = '60%';
+      } else if (bt.status === 'success') {
+        task.statusEl.textContent = '✅ 入库完成';
+        task.statusEl.style.color = '#52c41a';
+        task.fillEl.style.width = '100%';
+        task.fillEl.style.background = '#52c41a';
+        _autoRemoveTask(taskId, 3000);
+        return;
+      } else if (bt.status === 'failed') {
+        task.statusEl.textContent = '❌ 入库失败: ' + (bt.error || '未知错误');
+        task.statusEl.style.color = '#ff4d4f';
+        task.fillEl.style.width = '100%';
+        task.fillEl.style.background = '#ff4d4f';
+        // 失败的不自动消失，让用户能看到错误信息
+        task.row.style.borderBottom = '2px solid #ff4d4f';
+        task.row.style.background = '#fff2f0';
+        return;
+      }
+    } catch(e) {
+      // 网络错误继续轮询
+    }
+  }
+}
+
+function _autoRemoveTask(taskId, delayMs) {
+  const task = _uploadTasks[taskId];
+  if (!task) return;
+  setTimeout(() => {
+    task.row.classList.add('done');
+    setTimeout(() => {
+      task.row.remove();
+      delete _uploadTasks[taskId];
+      // 检查是否所有任务已清空，恢复上传区域
+      if (Object.keys(_uploadTasks).length === 0) {
+        document.getElementById('upload-zone').style.display = 'block';
+      }
+    }, 500);
+  }, delayMs);
+}
+
+function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 async function loadWatchFiles() {
   try {
     const resp = await fetch(getApiBase() + '/api/ingest/files', { headers: { 'Authorization': `Bearer ${token}` } });
@@ -378,7 +510,7 @@ async function loadWatchFiles() {
       <tr>
         <td>${esc(f.name)}</td>
         <td>${(f.size/1024).toFixed(1)} KB</td>
-        <td><span class="badge badge-active">${f.status||'待入库'}</span></td>
+        <td><span class="badge badge-active">待入库</span></td>
         <td><button class="btn btn-sm btn-danger" onclick="deleteWatchFile('${esc(f.name)}')">删除</button></td>
       </tr>
     `).join('');
@@ -699,14 +831,13 @@ zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add(
 zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
 zone.addEventListener('drop', e => {
   e.preventDefault(); zone.classList.remove('dragover');
-  const file = e.dataTransfer.files[0];
-  if (file && (file.name.endsWith('.ppt') || file.name.endsWith('.pptx'))) {
-    const input = document.getElementById('file-input');
-    const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
-    uploadFile(input);
-  } else {
-    setStatus('仅支持 PPT/PPTX 文件','error');
-  }
+  const files = Array.from(e.dataTransfer.files || []).filter(f => f.name.endsWith('.ppt') || f.name.endsWith('.pptx'));
+  if (files.length === 0) { setStatus('仅支持 PPT/PPTX 文件','error'); return; }
+  const input = document.getElementById('file-input');
+  const dt = new DataTransfer();
+  files.forEach(f => dt.items.add(f));
+  input.files = dt.files;
+  uploadFiles(input);
 });
 </script>
 </body>

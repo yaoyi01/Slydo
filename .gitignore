@@ -62,9 +62,6 @@ slydo-addin/SlydoAddIn/*.snk
 packages/
 *.nupkg
 
-# Published articles
-公众号文章-*.md
-小红书笔记-*.md
 
 # Design docs (internal only)
 Slydo-开发规范与计划.md

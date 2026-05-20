@@ -1,0 +1,2 @@
+-- Slydo 初始化 SQL
+CREATE EXTENSION IF NOT EXISTS vector;

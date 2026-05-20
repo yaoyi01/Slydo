@@ -25,7 +25,14 @@ import time
 import sys
 from pathlib import Path
 
-# 确保项目根目录在 sys.path 中
+# 进度回调（由 ingest.py 注入，用于前端实时显示入库阶段）
+_progress_callback: callable = None
+
+def _progress(msg: str):
+    if _progress_callback:
+        _progress_callback(msg)
+
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.config import settings
@@ -83,6 +90,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
     logger.info(f"{mode_label} 开始处理: {file_stem}")
 
     # ── Phase 1: checksum ──────────────────────────────
+    _progress("⏳ 去重校验...")
     checksum = compute_checksum(pptx_path)
     logger.info(f"  Phase1 [去重] checksum={checksum[:16]}...")
 
@@ -92,6 +100,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
             return 0
 
     # ── Phase 1: 文本提取 ────────────────────────────
+    _progress("⏳ 提取文本...")
     slides = extract_slides(pptx_path)
     if not slides:
         logger.warning("  Phase1 [提取] 未能提取到任何页面")
@@ -107,6 +116,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
     thumb_temp_dir = Path(tempfile.mkdtemp(prefix="slydo_thumb_"))
 
     try:
+        _progress(f"⏳ 渲染 {len(slides)} 张缩略图...")
         png_paths = render_slides_to_images(pptx_path, thumb_temp_dir, dpi=150)
         logger.info(f"  Phase1 [渲染] {len(png_paths)} 张缩略图")
         # 更新 slide dict 中的缩略图路径（临时路径）
@@ -119,6 +129,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
 
     # ── Phase 2: 多模态含义提取 ───────────────────────
     if not skip_vision:
+        _progress(f"👁️ 视觉分析（0/{len(slides)} 页）...")
         from app.services.etl.phase2_vision import llm_extract_meaning_batch
         counter = TokenCounter(model_name=settings.ollama_vision_model)
         slides = await llm_extract_meaning_batch(
@@ -146,6 +157,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
         return len(slides)
 
     # ── Phase 3: 结构化存储 ─────────────────────────
+    _progress("💾 写入数据库...")
     from app.services.etl.phase3_store import write_to_postgres, write_to_llm_wiki
     deck_info = await write_to_postgres(
         file_path=str(pptx_path),
@@ -189,6 +201,8 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
                 s["thumbnail_path"] = str(thumb_final_dir / f"slide_{idx:03d}.png")
 
     # 批量 UPDATE 缩略图路径到数据库
+    from app.database import async_session_factory
+    from sqlalchemy import text
     async with async_session_factory() as session:
         for s in slides:
             tp = s.get("thumbnail_path", "")
@@ -203,6 +217,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
 
     # ── Phase 4: 向量嵌入（仅未跳过时执行） ──────────
     if not skip_embed:
+        _progress("📊 向量嵌入 Qdrant...")
         from app.services.etl.phase4_embed import embed_to_qdrant
         qdrant_points = await embed_to_qdrant(
             deck_id=deck_id,
