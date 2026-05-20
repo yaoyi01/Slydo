@@ -430,6 +430,8 @@ function _startSingleUpload(item) {
         fillEl.style.background = '#52c41a';
         statusEl.textContent = '✅ 上传完成';
         statusEl.style.color = '#52c41a';
+        // 释放并发槽位，让下一个文件开始上传
+        _onUploadDone(file.name);
         // 开始轮询入库状态
         _pollIngestTask(taskId, data.data?.task_id);
       } else if (data.status === 'skipped') {
