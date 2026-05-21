@@ -273,7 +273,10 @@ tr:hover td { background: #f0f5ff; }
   </div>
 </div>
 
-<div id="status-bar" class="status-bar">就绪</div>
+<div id="status-bar" class="status-bar">
+  <span id="status-text">就绪</span>
+  <span style="float:right;cursor:pointer;color:#1890ff;font-size:12px" onclick="showLogin()" id="login-btn-bar" title="登录">🔑 登录</span>
+</div>
 
 <script>
 let token = localStorage.getItem('slydo_token') || '';
@@ -291,10 +294,11 @@ async function api(method, path, body) {
 }
 
 function setStatus(msg, type) {
-  const el = document.getElementById('status-bar');
+  const el = document.getElementById('status-text');
   el.textContent = msg;
-  el.style.background = type==='error'?'#fff2f0':type==='success'?'#f6ffed':'#fffbe6';
-  el.style.borderColor = type==='error'?'#ffccc7':type==='success'?'#b7eb8f':'#ffe58f';
+  const bar = document.getElementById('status-bar');
+  bar.style.background = type==='error'?'#fff2f0':type==='success'?'#f6ffed':'#fffbe6';
+  bar.style.borderColor = type==='error'?'#ffccc7':type==='success'?'#b7eb8f':'#ffe58f';
 }
 
 function showLogin() { document.getElementById('login-page').classList.add('active');document.getElementById('app-page').classList.remove('active'); }
