@@ -57,7 +57,11 @@ namespace SlydoAddIn.TaskPane
             try
             {
                 byte[] bytes = await _apiClient.GetThumbnailAsync(SlideData.SlideId);
-                if (bytes == null || bytes.Length == 0) return;
+                if (bytes == null || bytes.Length == 0)
+                {
+                    ShowPlaceholder();
+                    return;
+                }
 
                 using (var ms = new MemoryStream(bytes))
                 {
@@ -76,7 +80,22 @@ namespace SlydoAddIn.TaskPane
                     });
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 缩略图加载失败: {ex.Message}");
+                ShowPlaceholder();
+            }
+        }
+
+        private void ShowPlaceholder()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                ThumbnailImage.Visibility = Visibility.Collapsed;
+                PlaceholderText.Text = "📄 无预览";
+                PlaceholderText.Foreground = new SolidColorBrush(Color.FromRgb(180, 180, 180));
+                PlaceholderText.Visibility = Visibility.Visible;
+            });
         }
 
         private ImageSource _previewImage = null;

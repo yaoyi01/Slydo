@@ -25,7 +25,7 @@ namespace SlydoAddIn.Services
             _baseUrl = baseUrl ?? ThisAddIn.ApiBaseUrl;
             _httpClient = new HttpClient();
             _httpClient.BaseAddress = new Uri(_baseUrl);
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
+            _httpClient.Timeout = TimeSpan.FromSeconds(30); // 推荐/搜索超时适当放宽
             // 确保缓存目录存在
             try { Directory.CreateDirectory(CacheDir); } catch { }
         }
@@ -214,13 +214,16 @@ namespace SlydoAddIn.Services
         }
 
         /// <summary>
-        /// 获取幻灯片缩略图
+        /// 获取幻灯片缩略图（使用较长超时，图片文件可能较大）
         /// </summary>
         public async Task<byte[]> GetThumbnailAsync(string slideId)
         {
-            var response = await GetWithAuthAsync($"/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}");
-            response.EnsureSuccessStatusCode();
-            return await response.Content.ReadAsByteArrayAsync();
+            using (var timeoutCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(60)))
+            {
+                var response = await GetWithAuthAsync($"/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}");
+                response.EnsureSuccessStatusCode();
+                return await response.Content.ReadAsByteArrayAsync();
+            }
         }
 
         /// <summary>

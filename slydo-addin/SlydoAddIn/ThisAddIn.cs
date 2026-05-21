@@ -48,10 +48,12 @@ namespace SlydoAddIn
         private void ThisAddIn_Startup(object sender, EventArgs e)
         {
             // Step 1: 检查登录状态
-            if (!TokenManager.IsLoggedIn)
+            bool loggedIn = TokenManager.IsLoggedIn;
+            if (!loggedIn)
             {
                 ShowLoginForm();
-                // 用户取消登录 → 仍然显示 TaskPane（但功能不可用，API 会返回 401 友好提示）
+                // 检查是否登录成功了（用户可能取消了登录）
+                loggedIn = TokenManager.IsLoggedIn;
             }
 
             // Step 2: 初始化 Task Pane
@@ -74,7 +76,9 @@ namespace SlydoAddIn
             initTimer.Tick += (s, args) =>
             {
                 initTimer.Stop();
-                _paneControl?.TriggerRecommendation();
+                _paneControl?.UpdateConnectionStatus(loggedIn);
+                if (loggedIn)
+                    _paneControl?.TriggerRecommendation();
             };
             initTimer.Start();
         }

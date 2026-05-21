@@ -4,10 +4,12 @@ API 路由 — 缩略图服务
 from __future__ import annotations
 
 import uuid
+from io import BytesIO
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+from PIL import Image
 from sqlalchemy import select
 from sqlalchemy.orm import joinedload
 
@@ -21,6 +23,24 @@ router = APIRouter(prefix="/api/v1/thumbnails", tags=["缩略图"], dependencies
 # 缩略图根目录
 _wiki_root = Path(settings.slydo_wiki_path).expanduser()
 _thumb_root = _wiki_root / "thumbnails"
+
+# 缩略图缩放尺寸（宽高自适应，保持比例）
+THUMB_MAX_WIDTH = 400
+THUMB_MAX_HEIGHT = 225
+
+
+def _resize_and_respond(image_path: Path) -> Response:
+    """读取图片、按比例缩放到 THUMB_MAX 尺寸，返回压缩后的 PNG"""
+    try:
+        img = Image.open(image_path)
+        # 等比缩放
+        img.thumbnail((THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT), Image.LANCZOS if hasattr(Image, 'LANCZOS') else Image.ANTIALIAS)
+        buf = BytesIO()
+        img.save(buf, format="PNG", optimize=True)
+        buf.seek(0)
+        return Response(content=buf.getvalue(), media_type="image/png")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"缩略图处理失败: {e}")
 
 
 @router.get("/{slide_id}")
@@ -47,12 +67,12 @@ async def get_thumbnail(slide_id: str):
 
     # DB 中已有 thumbnail_path，先用它
     if slide.thumbnail_path and Path(slide.thumbnail_path).exists():
-        return FileResponse(str(Path(slide.thumbnail_path)), media_type="image/png")
+        return _resize_and_respond(Path(slide.thumbnail_path))
 
     # 按 thumbnails/deck_{name}/slide_{index:03d}.png 格式查找
     deck_name = slide.deck.title if slide.deck else str(slide.deck_id)[:8]
     thumb_path = _thumb_root / f"deck_{deck_name}" / f"slide_{slide.slide_index:03d}.png"
     if thumb_path.exists():
-        return FileResponse(str(thumb_path), media_type="image/png")
+        return _resize_and_respond(thumb_path)
 
     raise HTTPException(status_code=404, detail="缩略图未找到")

@@ -123,12 +123,16 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <TextBlock Grid.Column="0" Text="💡 点击卡片导入 · 悬停看大图" FontSize="10"
                        Foreground="#BBBBBB" VerticalAlignment="Center"/>
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse Width="5" Height="5" Fill="#009900" Margin="0,0,4,0"/>
-                <TextBlock Text="已连接" FontSize="10" Foreground="#009900"/>
+            <TextBlock x:Name="LoginButton" Grid.Column="1" Text="🔑 登录" FontSize="10"
+                       Foreground="#1890FF" Cursor="Hand" VerticalAlignment="Center"
+                       Margin="0,0,8,0" Visibility="Collapsed"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Ellipse x:Name="StatusDot" Width="5" Height="5" Fill="#009900" Margin="0,0,4,0"/>
+                <TextBlock x:Name="StatusTextBottom" Text="已连接" FontSize="10" Foreground="#009900"/>
             </StackPanel>
         </Grid>
     </Grid>

@@ -94,6 +94,11 @@ namespace SlydoAddIn.TaskPane
             }
         }
 
+        public void UpdateConnectionStatus(bool isConnected)
+        {
+            _wpfControl.UpdateConnectionStatus(isConnected);
+        }
+
         public void Cleanup()
         {
             _apiClient?.Dispose();

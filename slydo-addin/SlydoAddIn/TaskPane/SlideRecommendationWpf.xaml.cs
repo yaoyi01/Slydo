@@ -39,6 +39,59 @@ namespace SlydoAddIn.TaskPane
 
             // ⚙️ 设置按钮：弹出后端地址配置对话框
             SettingsButton.MouseLeftButtonUp += (s, e) => ShowSettingsDialog();
+            
+            // 🔑 登录按钮：弹出登录窗口
+            LoginButton.MouseLeftButtonUp += (s, e) => ShowLoginDialog();
+        }
+
+        /// <summary>
+        /// 弹出登录窗口
+        /// </summary>
+        private void ShowLoginDialog()
+        {
+            try
+            {
+                var loginForm = new LoginForm();
+                if (loginForm.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    // 登录成功，刷新推荐
+                    UpdateConnectionStatus(true);
+                    TriggerRecommendation();
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"打开登录窗口失败：{ex.Message}",
+                    "Slydo", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// 更新连接状态和登录按钮显示
+        /// </summary>
+        public void UpdateConnectionStatus(bool isConnected)
+        {
+            try
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    if (isConnected)
+                    {
+                        StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0, 153, 0));
+                        StatusTextBottom.Text = "已连接";
+                        StatusTextBottom.Foreground = new SolidColorBrush(Color.FromRgb(0, 153, 0));
+                        LoginButton.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        StatusDot.Fill = new SolidColorBrush(Color.FromRgb(200, 60, 60));
+                        StatusTextBottom.Text = "未连接";
+                        StatusTextBottom.Foreground = new SolidColorBrush(Color.FromRgb(200, 60, 60));
+                        LoginButton.Visibility = Visibility.Visible;
+                    }
+                });
+            }
+            catch { }
         }
 
         /// <summary>

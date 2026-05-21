@@ -233,6 +233,43 @@ def merge_dedup(
 
 
 # ═══════════════════════════════════════════════════════════
+# 4a. 最近入库（无查询时兜底）
+# ═══════════════════════════════════════════════════════════
+
+
+async def recent_slides(limit: int = TOP_N) -> list[dict[str, Any]]:
+    """无搜索词时返回最近入库的 slide（按入库时间倒序）"""
+    try:
+        async with async_session_factory() as session:
+            rows = (await session.execute(
+                text("""
+                    SELECT s.id::text, s.deck_id::text, s.slide_index,
+                           s.title, s.semantic_role, COALESCE(s.semantic_tags, ARRAY[]::text[]) AS semantic_tags
+                    FROM slides s
+                    JOIN decks d ON d.id = s.deck_id
+                    WHERE s.thumbnail_path IS NOT NULL AND s.thumbnail_path != ''
+                    ORDER BY d.created_at DESC, s.slide_index
+                    LIMIT :lim
+                """),
+                {"lim": limit},
+            )).fetchall()
+
+        return [{
+            "slide_id": str(r.id),
+            "deck_id": str(r.deck_id),
+            "slide_index": r.slide_index,
+            "title": r.title or "",
+            "semantic_role": r.semantic_role or "",
+            "semantic_tags": r.semantic_tags or [],
+            "score": 0.5,
+            "source": "recent",
+        } for r in rows]
+    except Exception as e:
+        logger.error(f"[推荐] 获取最近入库失败: {e}")
+        return []
+
+
+# ═══════════════════════════════════════════════════════════
 # 4. LLM 逻辑重排
 # ═══════════════════════════════════════════════════════════
 
@@ -372,8 +409,9 @@ async def recommend_slides(
     """
     query = context_title or context_keywords
     if not query.strip():
-        logger.warning("[推荐] 查询为空")
-        return []
+        logger.warning("[推荐] 查询为空，返回最近入库的内容")
+        # 没有搜索词时返回最近入库的 slide（推荐最新内容）
+        return await recent_slides(top_n)
 
     # Step 1: 语义召回
     semantic = await semantic_search(query)
