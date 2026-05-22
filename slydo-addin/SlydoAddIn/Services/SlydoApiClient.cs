@@ -214,15 +214,27 @@ namespace SlydoAddIn.Services
         }
 
         /// <summary>
-        /// 获取幻灯片缩略图（使用较长超时，图片文件可能较大）
+        /// 获取幻灯片缩略图（使用独立的 HttpClient，避免连接争用）
         /// </summary>
         public async Task<byte[]> GetThumbnailAsync(string slideId)
         {
-            using (var timeoutCts = new System.Threading.CancellationTokenSource(TimeSpan.FromSeconds(60)))
+            var url = $"{_baseUrl}/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}";
+            System.Diagnostics.Debug.WriteLine($"[Slydo] 请求缩略图: {url}");
+            // 使用独立 HttpClient，避免共享连接池限制
+            using (var http = new HttpClient())
             {
-                var response = await GetWithAuthAsync($"/api/v1/thumbnails/{Uri.EscapeDataString(slideId)}");
+                http.Timeout = TimeSpan.FromSeconds(60);
+                // 添加 Token
+                if (TokenManager.IsLoggedIn)
+                    http.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", TokenManager.AccessToken);
+
+                var response = await http.GetAsync(url);
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 缩略图响应: HTTP {(int)response.StatusCode}");
                 response.EnsureSuccessStatusCode();
-                return await response.Content.ReadAsByteArrayAsync();
+                var bytes = await response.Content.ReadAsByteArrayAsync();
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 缩略图大小: {bytes.Length} bytes");
+                return bytes;
             }
         }
 

@@ -4,6 +4,7 @@ API 路由 — 缩略图服务
 from __future__ import annotations
 
 import uuid
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 
@@ -28,19 +29,34 @@ _thumb_root = _wiki_root / "thumbnails"
 THUMB_MAX_WIDTH = 400
 THUMB_MAX_HEIGHT = 225
 
+# 内存缓存：避免每次请求都查数据库和重新处理图片
+# 键为 slide_id + 缩略图路径，值为缩放后的 PNG bytes
+_thumb_cache: dict[str, bytes] = {}
+_THUMB_CACHE_MAX = 500  # 最多缓存 500 张
 
-def _resize_and_respond(image_path: Path) -> Response:
-    """读取图片、按比例缩放到 THUMB_MAX 尺寸，返回压缩后的 PNG"""
-    try:
-        img = Image.open(image_path)
-        # 等比缩放
-        img.thumbnail((THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT), Image.LANCZOS if hasattr(Image, 'LANCZOS') else Image.ANTIALIAS)
-        buf = BytesIO()
-        img.save(buf, format="PNG", optimize=True)
-        buf.seek(0)
-        return Response(content=buf.getvalue(), media_type="image/png")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"缩略图处理失败: {e}")
+
+def _resize_image(image_path: Path) -> bytes:
+    """读取图片、等比缩放到 THUMB_MAX 尺寸，返回压缩后的 PNG bytes"""
+    img = Image.open(image_path)
+    img.thumbnail((THUMB_MAX_WIDTH, THUMB_MAX_HEIGHT), Image.LANCZOS if hasattr(Image, 'LANCZOS') else Image.ANTIALIAS)
+    buf = BytesIO()
+    img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _get_cached_thumbnail(image_path: Path) -> bytes:
+    """带 LRU 缓存的缩略图获取"""
+    cache_key = str(image_path.resolve())
+    if cache_key in _thumb_cache:
+        return _thumb_cache[cache_key]
+    data = _resize_image(image_path)
+    # 缓存管理：超过上限时清理一半
+    if len(_thumb_cache) >= _THUMB_CACHE_MAX:
+        # 删除前 250 个（简单清理）
+        for k in list(_thumb_cache.keys())[:250]:
+            del _thumb_cache[k]
+    _thumb_cache[cache_key] = data
+    return data
 
 
 @router.get("/{slide_id}")
@@ -67,12 +83,20 @@ async def get_thumbnail(slide_id: str):
 
     # DB 中已有 thumbnail_path，先用它
     if slide.thumbnail_path and Path(slide.thumbnail_path).exists():
-        return _resize_and_respond(Path(slide.thumbnail_path))
+        try:
+            data = _get_cached_thumbnail(Path(slide.thumbnail_path))
+            return Response(content=data, media_type="image/png")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"缩略图处理失败: {e}")
 
     # 按 thumbnails/deck_{name}/slide_{index:03d}.png 格式查找
     deck_name = slide.deck.title if slide.deck else str(slide.deck_id)[:8]
     thumb_path = _thumb_root / f"deck_{deck_name}" / f"slide_{slide.slide_index:03d}.png"
     if thumb_path.exists():
-        return _resize_and_respond(thumb_path)
+        try:
+            data = _get_cached_thumbnail(thumb_path)
+            return Response(content=data, media_type="image/png")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"缩略图处理失败: {e}")
 
     raise HTTPException(status_code=404, detail="缩略图未找到")

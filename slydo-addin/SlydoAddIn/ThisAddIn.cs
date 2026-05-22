@@ -27,7 +27,7 @@ namespace SlydoAddIn
                 }
             }
             catch { }
-            return "http://localhost:8001";
+            return "http://115.191.10.205";
         }
 
         private static void SaveApiBaseUrl(string url)
