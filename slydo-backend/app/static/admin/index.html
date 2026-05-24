@@ -96,13 +96,13 @@ tr:hover td { background: #f0f5ff; }
   </div>
   <div class="container">
 
-    <div class="tabs">
-      <div class="tab active" data-tab="tab-upload" onclick="switchTab('tab-upload')">📤 文件入库</div>
-      <div class="tab" data-tab="tab-users" onclick="switchTab('tab-users')">👤 用户管理</div>
-      <div class="tab" data-tab="tab-decks" onclick="switchTab('tab-decks')">📁 文件管理</div>
-      <div class="tab" data-tab="tab-dashboard" onclick="loadDashboard();switchTab('tab-dashboard')">📊 监控面板</div>
-      <div class="tab" data-tab="tab-usage" onclick="loadUsageStats();switchTab('tab-usage')">📈 使用统计</div>
-      <div class="tab" data-tab="tab-config" onclick="loadConfig();switchTab('tab-config')">⚙️ 系统配置</div>
+    <div class="tabs" id="tab-bar">
+      <div class="tab active" data-tab="tab-upload" data-perm="upload" onclick="switchTab('tab-upload')">📤 文件入库</div>
+      <div class="tab" data-tab="tab-users" data-perm="users" onclick="switchTab('tab-users')">👤 用户管理</div>
+      <div class="tab" data-tab="tab-decks" data-perm="files" onclick="switchTab('tab-decks')">📁 文件管理</div>
+      <div class="tab" data-tab="tab-dashboard" data-perm="dashboard" onclick="loadDashboard();switchTab('tab-dashboard')">📊 监控面板</div>
+      <div class="tab" data-tab="tab-usage" data-perm="usage" onclick="loadUsageStats();switchTab('tab-usage')">📈 使用统计</div>
+      <div class="tab" data-tab="tab-config" data-perm="config" onclick="loadConfig();switchTab('tab-config')">⚙️ 系统配置</div>
     </div>
 
     <!-- Tab 1: 文件入库 -->
@@ -306,7 +306,15 @@ function showApp(user) {
   document.getElementById('login-page').classList.remove('active');
   document.getElementById('app-page').classList.add('active');
   document.getElementById('header-user').textContent = `👤 ${user.display_name||user.username} (${user.role})`;
-  loadUsers(); loadWatchFiles(); loadDecks();
+  // 根据权限显示/隐藏 Tab
+  const perms = user.permissions || [];
+  const isAdmin = user.role === 'admin';
+  document.querySelectorAll('#tab-bar .tab').forEach(tab => {
+    const perm = tab.dataset.perm;
+    tab.style.display = (isAdmin || perms.includes(perm)) ? '' : 'none';
+  });
+  if (isAdmin) loadUsers();
+  loadWatchFiles(); loadDecks();
 }
 
 async function login() {
@@ -555,6 +563,7 @@ async function loadUsers() {
         <td>
           <button class="btn btn-sm ${u.is_active?'btn-danger':'btn-success'}" onclick="toggleUser('${u.id}',${!u.is_active})">${u.is_active?'禁用':'启用'}</button>
           <button class="btn btn-sm btn-primary" onclick="resetPwd('${u.id}')">重置密码</button>
+          ${u.role!=='admin'?`<button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${esc(u.username)}')">删除</button>`:''}
         </td>
       </tr>
     `).join('');
@@ -590,6 +599,12 @@ async function toggleUser(id,activate) {
 }
 
 function resetPwd(id) { const pwd=prompt('新密码(至少4位)'); if(!pwd||pwd.length<4) return; api('PATCH',`/api/admin/users/${id}`,{password:pwd}).then(()=>{setStatus('密码已重置','success')}).catch(e=>setStatus(e.message,'error')); }
+
+async function deleteUser(id, username) {
+  if (!confirm(`确定要永久删除用户 \"${username}\"？此操作不可恢复！`)) return;
+  try { await api('DELETE', `/api/admin/users/${id}`); loadUsers(); setStatus(`已删除用户: ${username}`, 'success'); }
+  catch(e) { setStatus(e.message, 'error'); }
+}
 
 // ═══ 已入库文件管理 ═══
 
