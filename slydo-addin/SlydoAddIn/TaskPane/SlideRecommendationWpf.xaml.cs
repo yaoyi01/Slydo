@@ -77,8 +77,10 @@ namespace SlydoAddIn.TaskPane
                 {
                     if (isConnected)
                     {
+                        // 显示用户信息
+                        var username = TokenManager.Username;
                         StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0, 153, 0));
-                        StatusTextBottom.Text = "已连接";
+                        StatusTextBottom.Text = string.IsNullOrEmpty(username) ? "已连接" : $"已登录: {username}";
                         StatusTextBottom.Foreground = new SolidColorBrush(Color.FromRgb(0, 153, 0));
                         LoginButton.Visibility = Visibility.Collapsed;
                     }
