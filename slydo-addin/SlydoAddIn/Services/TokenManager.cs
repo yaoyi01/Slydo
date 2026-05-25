@@ -16,9 +16,11 @@ namespace SlydoAddIn.Services
 
         private static string _accessToken;
         private static string _refreshToken;
+        private static string _username;
 
         public static string AccessToken => _accessToken;
         public static string RefreshToken => _refreshToken;
+        public static string Username => _username;
 
         static TokenManager()
         {
@@ -39,6 +41,13 @@ namespace SlydoAddIn.Services
                 File.WriteAllText(TokenFile, data);
             }
             catch { }
+        }
+
+        /// <summary>保存 Token 和用户名</summary>
+        public static void SaveFull(string accessToken, string refreshToken, string username)
+        {
+            _username = username;
+            Save(accessToken, refreshToken);
         }
 
         /// <summary>从磁盘加载 Token</summary>

@@ -20,10 +20,11 @@ namespace SlydoAddIn
         public LoginForm()
         {
             Text = "Slydo 登录";
-            Size = new Size(360, 260);
-            FormBorderStyle = FormBorderStyle.FixedDialog;
-            MaximizeBox = false;
-            MinimizeBox = false;
+            Size = new Size(420, 320);
+            MinimumSize = new Size(360, 260);
+            FormBorderStyle = FormBorderStyle.Sizable;
+            MaximizeBox = true;
+            MinimizeBox = true;
             StartPosition = FormStartPosition.CenterParent;
             BackColor = Color.White;
 
@@ -33,14 +34,16 @@ namespace SlydoAddIn
                 Font = new Font("微软雅黑", 18, FontStyle.Bold),
                 ForeColor = Color.FromArgb(26, 26, 46),
                 TextAlign = ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(0, 20),
-                Size = new Size(345, 40),
+                Size = new Size(405, 40),
             };
 
             _txtUsername = new TextBox
             {
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 80),
-                Size = new Size(285, 28),
+                Size = new Size(345, 28),
                 Font = new Font("微软雅黑", 12),
             };
             // 模拟 PlaceholderText
@@ -50,8 +53,9 @@ namespace SlydoAddIn
 
             _txtPassword = new TextBox
             {
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 120),
-                Size = new Size(285, 28),
+                Size = new Size(345, 28),
                 Font = new Font("微软雅黑", 12),
                 UseSystemPasswordChar = true,
             };
@@ -64,8 +68,9 @@ namespace SlydoAddIn
             _btnLogin = new Button
             {
                 Text = "登  录",
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 165),
-                Size = new Size(285, 36),
+                Size = new Size(345, 36),
                 Font = new Font("微软雅黑", 12, FontStyle.Bold),
                 BackColor = Color.FromArgb(24, 144, 255),
                 ForeColor = Color.White,
@@ -81,8 +86,9 @@ namespace SlydoAddIn
                 ForeColor = Color.Red,
                 Font = new Font("微软雅黑", 10),
                 TextAlign = ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 210),
-                Size = new Size(285, 30),
+                Size = new Size(345, 30),
             };
 
             _btnLogin.Click += BtnLogin_Click;
@@ -126,7 +132,7 @@ namespace SlydoAddIn
                     if (response.IsSuccessStatusCode)
                     {
                         var tokenResp = JsonConvert.DeserializeObject<TokenResponse>(body);
-                        TokenManager.Save(tokenResp.access_token, tokenResp.refresh_token);
+                        TokenManager.SaveFull(tokenResp.access_token, tokenResp.refresh_token, username);
                         DialogResult = DialogResult.OK;
                         Close();
                     }

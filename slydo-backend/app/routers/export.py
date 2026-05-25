@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.routers.auth import get_current_user
@@ -18,13 +18,19 @@ vsto_router = APIRouter(prefix="/api/v1/recommend", tags=["单页导出（VSTO �
 
 
 @router.get("/{slide_id}/export")
-@vsto_router.get("/export")
-async def api_export_slide(slide_id: str = ""):
-    """
-    导出单页幻灯片为 PPTX 文件。
+async def api_export_slide_path(slide_id: str):
+    """导出单页幻灯片为 PPTX 文件（path 参数）"""
+    return await _export_slide(slide_id)
 
-    返回：PPTX 文件流（Content-Type: application/vnd.openxmlformats-officedocument.presentationml.presentation）
-    """
+
+@vsto_router.get("/export")
+async def api_export_slide_query(slide_id: str = Query("", description="slide UUID（VSTO 传 query 参数）")):
+    """导出单页幻灯片为 PPTX 文件（query 参数，兼容 VSTO 客户端）"""
+    return await _export_slide(slide_id)
+
+
+async def _export_slide(slide_id: str):
+    """导出单页幻灯片的核心逻辑"""
     try:
         buf = await export_single_slide(slide_id)
     except ValueError as e:
