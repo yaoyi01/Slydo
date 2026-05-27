@@ -59,12 +59,13 @@ services:
       qdrant:
         condition: service_started
     environment:
-      DATABASE_URL: postgresql://slydo:slydo_docker_2026@postgres:5432/slydo
+      DATABASE_URL: postgresql://slydo:***@postgres:5432/slydo
       JWT_SECRET_KEY: slydo-jwt-secret-deploy-2026
-      DEEPSEEK_API_KEY: "sk-87b139f21dc64a728c6a82c437211d24"
+      # API Keys 通过 .env 文件传入，不要写死在 docker-compose.yml 中
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       DEEPSEEK_BASE_URL: https://api.deepseek.com/v1
       LLM_MODEL: deepseek-v4-flash
-      DASHSCOPE_API_KEY: "sk-4e9a9e4c670f4693859c9430290a55f2"
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY}
       DASHSCOPE_BASE_URL: https://dashscope.aliyuncs.com/api/v1
       DASHSCOPE_VISION_MODEL: qwen3-vl-flash
       SLYDO_WIKI_PATH: /data/wiki
