@@ -30,6 +30,7 @@ namespace SlydoAddIn.TaskPane
             InitializeComponent();
             _apiClient = new SlydoApiClient();
             _previewForm = new SlidePreviewWpf();
+            _previewForm.Deactivated += (s, e) => _previewForm.Hide();
 
             SearchButton.MouseLeftButtonUp += (s, e) => DoSearch();
             SearchBox.KeyDown += (s, e) =>
@@ -42,6 +43,42 @@ namespace SlydoAddIn.TaskPane
             
             // 🔑 登录按钮：弹出登录窗口
             LoginButton.MouseLeftButtonUp += (s, e) => ShowLoginDialog();
+            
+            // 🚪 退出按钮：登出并清空 Token
+            LogoutButton.MouseLeftButtonUp += (s, e) => ShowLogoutConfirm();
+
+            // 强制设置最小尺寸
+            this.MinWidth = 250;
+            this.Loaded += (s, e) =>
+            {
+                if (this.ActualWidth < 250)
+                    this.Width = 250;
+                if (this.ActualHeight < 200)
+                    this.Height = 200;
+            };
+        }
+
+        /// <summary>
+        /// 退出登录确认
+        /// </summary>
+        private void ShowLogoutConfirm()
+        {
+            try
+            {
+                var result = System.Windows.MessageBox.Show("确定退出登录？", "Slydo",
+                    MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (result == MessageBoxResult.Yes)
+                {
+                    TokenManager.Clear();
+                    UpdateConnectionStatus(false);
+                    CardList.Items.Clear();
+                    StatusText.Text = "已退出登录";
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 退出登录异常: {ex.Message}");
+            }
         }
 
         /// <summary>
@@ -80,9 +117,10 @@ namespace SlydoAddIn.TaskPane
                         // 显示用户信息
                         var username = TokenManager.Username;
                         StatusDot.Fill = new SolidColorBrush(Color.FromRgb(0, 153, 0));
-                        StatusTextBottom.Text = string.IsNullOrEmpty(username) ? "已连接" : $"已登录: {username}";
+                        StatusTextBottom.Text = string.IsNullOrEmpty(username) ? "已连接" : $"{username}";
                         StatusTextBottom.Foreground = new SolidColorBrush(Color.FromRgb(0, 153, 0));
                         LoginButton.Visibility = Visibility.Collapsed;
+                        LogoutButton.Visibility = Visibility.Visible;
                     }
                     else
                     {
@@ -90,6 +128,7 @@ namespace SlydoAddIn.TaskPane
                         StatusTextBottom.Text = "未连接";
                         StatusTextBottom.Foreground = new SolidColorBrush(Color.FromRgb(200, 60, 60));
                         LoginButton.Visibility = Visibility.Visible;
+                        LogoutButton.Visibility = Visibility.Collapsed;
                     }
                 });
             }

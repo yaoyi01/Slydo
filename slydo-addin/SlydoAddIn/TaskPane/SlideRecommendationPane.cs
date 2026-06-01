@@ -29,16 +29,6 @@ namespace SlydoAddIn.TaskPane
             };
             this.Controls.Add(_elementHost);
 
-            // 窗口大小变化时同步 WPF 控件宽度
-            this.Resize += (s, e) =>
-            {
-                if (_wpfControl != null && this.ClientSize.Width > 0)
-                {
-                    _wpfControl.Width = this.ClientSize.Width;
-                    _wpfControl.UpdateLayout();
-                }
-            };
-
             // 加载后自动触发推荐
             this.Load += (s, e) => _wpfControl.TriggerRecommendation();
         }

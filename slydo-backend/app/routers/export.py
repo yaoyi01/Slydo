@@ -9,12 +9,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.routers.auth import get_current_user
+
+logger = __import__('logging').getLogger(__name__)
 from app.services.export import export_single_slide
 
 router = APIRouter(prefix="/api/slides", tags=["单页导出"], dependencies=[Depends(get_current_user)])
 
 # /api/v1/recommend/export 别名 — 兼容 VSTO 客户端
 vsto_router = APIRouter(prefix="/api/v1/recommend", tags=["单页导出（VSTO 兼容）"], dependencies=[Depends(get_current_user)])
+
+logger.info(f"[导出] 路由已注册: {router.prefix} + {vsto_router.prefix}")
 
 
 @router.get("/{slide_id}/export")
@@ -24,7 +28,7 @@ async def api_export_slide_path(slide_id: str):
 
 
 @vsto_router.get("/export")
-async def api_export_slide_query(slide_id: str = Query("", description="slide UUID（VSTO 传 query 参数）")):
+async def api_export_slide_query(slide_id: str = Query("", description="slide UUID（VSTO 传 query 参数）"), target_index: int = Query(-1, description="目标位置（VSTO 参数保留，不处理）")):
     """导出单页幻灯片为 PPTX 文件（query 参数，兼容 VSTO 客户端）"""
     return await _export_slide(slide_id)
 

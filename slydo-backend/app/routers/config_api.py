@@ -33,10 +33,12 @@ class ModelConfigOut(BaseModel):
     llm_provider: str = Field(default="DeepSeek", description="LLM 提供商")
     llm_model: str = ""
     llm_base_url: str = ""
+    llm_api_key: str = ""
 
     vl_provider: str = Field(default="DashScope/Aliyun", description="视觉模型提供商")
     vl_model: str = ""
     vl_base_url: str = ""
+    vl_api_key: str = ""
 
     embed_provider: str = Field(default="Ollama", description="嵌入服务提供商")
     embed_model: str = ""
@@ -46,8 +48,10 @@ class ModelConfigOut(BaseModel):
 class ModelConfigUpdate(BaseModel):
     llm_model: str | None = Field(None, max_length=128)
     llm_base_url: str | None = Field(None, max_length=256)
+    llm_api_key: str | None = Field(None, max_length=256)
     vl_model: str | None = Field(None, max_length=128)
     vl_base_url: str | None = Field(None, max_length=256)
+    vl_api_key: str | None = Field(None, max_length=256)
 
 
 @router.get("", response_model=ModelConfigOut)
@@ -57,9 +61,11 @@ async def get_config(_admin: User = Depends(require_admin)):
         llm_provider="DeepSeek",
         llm_model=settings.llm_model or "deepseek-v4-flash",
         llm_base_url=settings.deepseek_base_url or "https://api.deepseek.com/v1",
+        llm_api_key=settings.deepseek_api_key[:12] + "..." if settings.deepseek_api_key else "",
         vl_provider="DashScope/Aliyun",
         vl_model=settings.dashscope_vision_model or "qwen3-vl-flash",
         vl_base_url=settings.dashscope_base_url or "https://dashscope.aliyuncs.com/api/v1",
+        vl_api_key=settings.dashscope_api_key[:12] + "..." if settings.dashscope_api_key else "",
         embed_provider="Ollama (bge-m3)",
         embed_model="bge-m3",
         embed_base_url=settings.ollama_base_url or "http://172.22.224.1:11434",
@@ -86,12 +92,18 @@ async def update_config(
         if data.llm_base_url is not None:
             updates["DEEPSEEK_BASE_URL"] = data.llm_base_url
             settings.deepseek_base_url = data.llm_base_url
+        if data.llm_api_key is not None:
+            updates["DEEPSEEK_API_KEY"] = data.llm_api_key
+            settings.deepseek_api_key = data.llm_api_key
         if data.vl_model is not None:
             updates["DASHSCOPE_VISION_MODEL"] = data.vl_model
             settings.dashscope_vision_model = data.vl_model
         if data.vl_base_url is not None:
             updates["DASHSCOPE_BASE_URL"] = data.vl_base_url
             settings.dashscope_base_url = data.vl_base_url
+        if data.vl_api_key is not None:
+            updates["DASHSCOPE_API_KEY"] = data.vl_api_key
+            settings.dashscope_api_key = data.vl_api_key
 
         # 更新 .env 文件（替换或追加）
         updated_keys = set()

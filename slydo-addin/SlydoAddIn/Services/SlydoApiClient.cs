@@ -185,32 +185,16 @@ namespace SlydoAddIn.Services
         public async Task<string> ExportSlideAsync(string slideId, int targetIndex)
         {
             var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
-            // 导出文件可能较大（~20MB），单独使用较长超时（120秒）
-            HttpClient exportClient = null;
-            try
-            {
-                exportClient = new HttpClient();
-                exportClient.BaseAddress = _httpClient.BaseAddress;
-                exportClient.Timeout = TimeSpan.FromSeconds(120);
-                // Token
-                if (TokenManager.IsLoggedIn)
-                    exportClient.DefaultRequestHeaders.Authorization =
-                        new AuthenticationHeaderValue("Bearer", TokenManager.AccessToken);
-
-                var response = await exportClient.GetAsync(url);
-                response.EnsureSuccessStatusCode();
+            // 导出文件可能较大（~20MB），在原来 120 秒基础上，用 GetWithAuthAsync 确保 Token 认证正确
+            var response = await GetWithAuthAsync(url);
+            response.EnsureSuccessStatusCode();
 
             var tempPath = Path.Combine(Path.GetTempPath(), $"slydo_export_{Guid.NewGuid():N}.pptx");
-                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
             {
                 await response.Content.CopyToAsync(fs);
             }
-                return tempPath;
-            }
-            finally
-            {
-                exportClient?.Dispose();
-            }
+            return tempPath;
         }
 
         /// <summary>

@@ -172,9 +172,27 @@ tr:hover td { background: #f0f5ff; }
     <!-- Tab 3: 已入库文件管理 -->
     <div id="tab-decks" class="tab-content">
       <div class="card">
-        <h2>已入库文档</h2>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <h2 style="margin:0">已入库文档</h2>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="deck-select-count" style="font-size:13px;color:#999"></span>
+            <button id="batch-delete-btn" class="btn btn-sm btn-danger" onclick="batchDeleteDecks()" disabled style="display:none">🗑️ 批量删除</button>
+          </div>
+        </div>
         <table>
-          <thead><tr><th>文件名</th><th>页面数</th><th>分类</th><th>版本</th><th>更新时间</th><th>操作</th></tr></thead>
+          <thead>
+            <tr>
+              <th style="width:40px;text-align:center">
+                <input type="checkbox" onchange="toggleAllDecks(this.checked)" id="deck-select-all" style="cursor:pointer">
+              </th>
+              <th>文件名</th>
+              <th>页面数</th>
+              <th>分类</th>
+              <th>版本</th>
+              <th>更新时间</th>
+              <th>操作</th>
+            </tr>
+          </thead>
           <tbody id="deck-table"></tbody>
         </table>
       </div>
@@ -248,12 +266,14 @@ tr:hover td { background: #f0f5ff; }
             <div class="form-group"><label>提供商</label><input type="text" id="cfg-llm-provider" disabled style="background:#f5f5f5"></div>
             <div class="form-group"><label>模型名称</label><input type="text" id="cfg-llm-model" placeholder="deepseek-v4-flash"></div>
             <div class="form-group"><label>API 地址</label><input type="text" id="cfg-llm-url" placeholder="https://api.deepseek.com/v1"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="cfg-llm-key" placeholder="sk-..."></div>
           </div>
           <div>
             <h3 style="font-size:15px;margin-bottom:12px;color:#1a1a2e">👁️ 视觉模型 (VL)</h3>
             <div class="form-group"><label>提供商</label><input type="text" id="cfg-vl-provider" disabled style="background:#f5f5f5"></div>
             <div class="form-group"><label>模型名称</label><input type="text" id="cfg-vl-model" placeholder="qwen3-vl-flash"></div>
             <div class="form-group"><label>API 地址</label><input type="text" id="cfg-vl-url" placeholder="https://dashscope.aliyuncs.com/api/v1"></div>
+            <div class="form-group"><label>API Key</label><input type="password" id="cfg-vl-key" placeholder="sk-..."></div>
           </div>
         </div>
         <div style="margin-top:16px;display:flex;gap:12px;align-items:center">
@@ -606,19 +626,77 @@ async function deleteUser(id, username) {
   catch(e) { setStatus(e.message, 'error'); }
 }
 
-// ═══ 已入库文件管理 ═══
+// ═══ 已入库文件管理（含多选+批量删除） ═══
+
+// 存储所有 deck 的选中状态
+const _deckSelections = {};
+
+function toggleAllDecks(checked) {
+  const checkboxes = document.querySelectorAll('.deck-select-item');
+  checkboxes.forEach(cb => { cb.checked = checked; _deckSelections[cb.dataset.id] = checked; });
+  updateBatchDeleteBtn();
+}
+
+function toggleOneDeck(id, checked) {
+  _deckSelections[id] = checked;
+  updateBatchDeleteBtn();
+}
+
+function updateBatchDeleteBtn() {
+  const selected = Object.keys(_deckSelections).filter(id => _deckSelections[id]);
+  const btn = document.getElementById('batch-delete-btn');
+  const countEl = document.getElementById('deck-select-count');
+  if (selected.length > 0) {
+    btn.style.display = 'inline-block';
+    btn.disabled = false;
+    countEl.textContent = `已选 ${selected.length} 项`;
+  } else {
+    btn.style.display = 'none';
+    btn.disabled = true;
+    countEl.textContent = '';
+  }
+}
+
+function getSelectedDeckIds() {
+  return Object.keys(_deckSelections).filter(id => _deckSelections[id]);
+}
+
+async function batchDeleteDecks() {
+  const ids = getSelectedDeckIds();
+  if (ids.length === 0) return;
+  if (!confirm(`⚠️ 确定要永久删除选中的 ${ids.length} 篇文档及其所有页面？此操作不可恢复！`)) return;
+  let success = 0, fail = 0;
+  for (const id of ids) {
+    try {
+      await api('DELETE', `/api/decks/${id}`);
+      success++;
+    } catch(e) {
+      fail++;
+      console.error('批量删除失败:', id, e);
+    }
+  }
+  if (fail > 0) setStatus(`🗑️ 已删除 ${success} 篇，${fail} 篇失败`, 'error');
+  else setStatus(`🗑️ 已批量删除 ${success} 篇文档`, 'success');
+  _deckSelections.length = 0;
+  loadDecks();
+}
 
 async function loadDecks() {
   try {
     const resp = await api('GET', '/api/decks?limit=100');
     const decks = resp.items || [];
+    // 只保留仍在列表中的选中状态，移除已删除的
+    const currentIds = decks.map(d => d.id);
+    Object.keys(_deckSelections).forEach(id => { if (!currentIds.includes(id)) delete _deckSelections[id]; });
     const tbody = document.getElementById('deck-table');
     if (decks.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#999">暂无已入库文档</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#999">暂无已入库文档</td></tr>';
       return;
     }
-    tbody.innerHTML = decks.map(d => `
-      <tr>
+    tbody.innerHTML = decks.map(d => {
+      const checked = _deckSelections[d.id] ? 'checked' : '';
+      return `<tr>
+        <td style="text-align:center"><input type="checkbox" class="deck-select-item" data-id="${d.id}" onchange="toggleOneDeck('${d.id}', this.checked)" ${checked} style="cursor:pointer"></td>
         <td>${esc(d.title||'未命名')}</td>
         <td>${d.slide_count||0}</td>
         <td>${esc(d.category||'-')}</td>
@@ -627,8 +705,8 @@ async function loadDecks() {
         <td>
           <button class="btn btn-sm btn-danger" onclick="deleteDeck('${d.id}','${esc(d.title||'文档')}')">删除</button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   } catch(e) { setStatus('加载文档列表失败:'+e.message,'error'); }
 }
 
@@ -798,9 +876,13 @@ async function loadConfig() {
     document.getElementById('cfg-llm-provider').value = config.llm_provider || '';
     document.getElementById('cfg-llm-model').value = config.llm_model || '';
     document.getElementById('cfg-llm-url').value = config.llm_base_url || '';
+    document.getElementById('cfg-llm-key').value = config.llm_api_key ? '********' : '';
+    document.getElementById('cfg-llm-key').dataset.hasKey = config.llm_api_key ? '1' : '0';
     document.getElementById('cfg-vl-provider').value = config.vl_provider || '';
     document.getElementById('cfg-vl-model').value = config.vl_model || '';
     document.getElementById('cfg-vl-url').value = config.vl_base_url || '';
+    document.getElementById('cfg-vl-key').value = config.vl_api_key ? '********' : '';
+    document.getElementById('cfg-vl-key').dataset.hasKey = config.vl_api_key ? '1' : '0';
     document.getElementById('cfg-embed-provider').value = config.embed_provider || '';
     document.getElementById('cfg-embed-model').value = config.embed_model || '';
     document.getElementById('cfg-status').textContent = '';
@@ -819,6 +901,11 @@ async function saveConfig() {
       vl_model: document.getElementById('cfg-vl-model').value || null,
       vl_base_url: document.getElementById('cfg-vl-url').value || null,
     };
+    // 只有用户输入了新值才传 key，保持 ******** 不变
+    const llmKey = document.getElementById('cfg-llm-key').value;
+    if (llmKey && llmKey !== '********') data.llm_api_key = llmKey;
+    const vlKey = document.getElementById('cfg-vl-key').value;
+    if (vlKey && vlKey !== '********') data.vl_api_key = vlKey;
     const result = await api('PUT', '/api/admin/config', data);
     status.innerHTML = '<span class="success-msg">✅ 配置已保存（重启容器后生效）</span>';
   } catch(e) {

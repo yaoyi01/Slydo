@@ -20,8 +20,8 @@ namespace SlydoAddIn
         public LoginForm()
         {
             Text = "Slydo 登录";
-            Size = new Size(420, 320);
-            MinimumSize = new Size(360, 260);
+            Size = new Size(440, 400);
+            MinimumSize = new Size(360, 340);
             FormBorderStyle = FormBorderStyle.Sizable;
             MaximizeBox = true;
             MinimizeBox = true;
@@ -36,14 +36,14 @@ namespace SlydoAddIn
                 TextAlign = ContentAlignment.MiddleCenter,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(0, 20),
-                Size = new Size(405, 40),
+                Size = new Size(425, 40),
             };
 
             _txtUsername = new TextBox
             {
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 80),
-                Size = new Size(345, 28),
+                Size = new Size(365, 28),
                 Font = new Font("微软雅黑", 12),
             };
             // 模拟 PlaceholderText
@@ -55,7 +55,7 @@ namespace SlydoAddIn
             {
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 120),
-                Size = new Size(345, 28),
+                Size = new Size(365, 28),
                 Font = new Font("微软雅黑", 12),
                 UseSystemPasswordChar = true,
             };
@@ -70,7 +70,7 @@ namespace SlydoAddIn
                 Text = "登  录",
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 165),
-                Size = new Size(345, 36),
+                Size = new Size(365, 36),
                 Font = new Font("微软雅黑", 12, FontStyle.Bold),
                 BackColor = Color.FromArgb(24, 144, 255),
                 ForeColor = Color.White,
@@ -88,7 +88,7 @@ namespace SlydoAddIn
                 TextAlign = ContentAlignment.MiddleCenter,
                 Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right,
                 Location = new Point(30, 210),
-                Size = new Size(345, 30),
+                Size = new Size(365, 30),
             };
 
             _btnLogin.Click += BtnLogin_Click;

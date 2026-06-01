@@ -1,6 +1,7 @@
 <UserControl x:Class="SlydoAddIn.TaskPane.SlideRecommendationWpf"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             HorizontalAlignment="Stretch"
              Background="White">
     <Grid>
         <Grid.RowDefinitions>
@@ -49,11 +50,11 @@
             </StackPanel>
         </Grid>
 
-        <!-- 搜索栏 -->
-        <Grid Grid.Row="2" Margin="20,12,20,0">
+        <!-- 搜索栏 — MinWidth + 搜索按钮固定列宽 60 -->
+        <Grid Grid.Row="2" Margin="20,12,20,0" MinWidth="200">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="60"/>
             </Grid.ColumnDefinitions>
             <Border Grid.Column="0" CornerRadius="6" BorderBrush="#E0E0E0" BorderThickness="1"
                     Background="White" Height="30">
@@ -62,7 +63,7 @@
                          Margin="8,0,0,0" Padding="2,0,0,0"/>
             </Border>
             <Border x:Name="SearchButton" Grid.Column="1" CornerRadius="6"
-                    Background="#6C63FF" Height="30" Width="60"
+                    Background="#6C63FF" Height="30"
                     Margin="8,0,0,0" Cursor="Hand">
                 <TextBlock Text="搜索" FontSize="12"
                     FontWeight="Bold" Foreground="White"
@@ -99,9 +100,8 @@
         <ListBox x:Name="CardList" Grid.Row="5" Margin="20,6,20,0"
                  Background="Transparent" BorderThickness="0"
                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 ItemContainerStyle="{StaticResource {x:Type ListBoxItem}}">
-            <ListBox.Resources>
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="Background" Value="Transparent"/>
                     <Setter Property="BorderThickness" Value="0"/>
@@ -115,25 +115,32 @@
                         </Setter.Value>
                     </Setter>
                 </Style>
-            </ListBox.Resources>
+            </ListBox.ItemContainerStyle>
         </ListBox>
 
-        <!-- 底部 -->
-        <Grid Grid.Row="6" Margin="20,0,20,8" Height="24">
+        <!-- 底部 — 状态圆点 + 用户名 + 登录/退出 + 提示 -->
+        <Grid Grid.Row="6" MinHeight="28" Margin="20,0,20,8">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="💡 点击卡片导入 · 悬停看大图" FontSize="10"
-                       Foreground="#BBBBBB" VerticalAlignment="Center"/>
-            <TextBlock x:Name="LoginButton" Grid.Column="1" Text="🔑 登录" FontSize="10"
+            <Ellipse x:Name="StatusDot" Grid.Column="0" Width="6" Height="6" Fill="#009900"
+                     VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <TextBlock x:Name="StatusTextBottom" Grid.Column="1" Text="已连接" FontSize="10"
+                       Foreground="#009900" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="LoginButton" Grid.Column="2" Text="登录" FontSize="10"
                        Foreground="#1890FF" Cursor="Hand" VerticalAlignment="Center"
-                       Margin="0,0,8,0" Visibility="Collapsed"/>
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <Ellipse x:Name="StatusDot" Width="5" Height="5" Fill="#009900" Margin="0,0,4,0"/>
-                <TextBlock x:Name="StatusTextBottom" Text="已连接" FontSize="10" Foreground="#009900"/>
-            </StackPanel>
+                       TextAlignment="Right" HorizontalAlignment="Right"
+                       Margin="4,0,4,0" Visibility="Collapsed"/>
+            <TextBlock x:Name="LogoutButton" Grid.Column="2" Text="退出" FontSize="10"
+                       Foreground="#999999" Cursor="Hand" VerticalAlignment="Center"
+                       TextAlignment="Right" HorizontalAlignment="Right"
+                       Margin="4,0,4,0" Visibility="Collapsed"/>
+            <TextBlock Grid.Column="3" Text="💡 点击卡片导入" FontSize="9"
+                       Foreground="#BBBBBB" VerticalAlignment="Center"/>
         </Grid>
     </Grid>
 </UserControl>

@@ -15,6 +15,7 @@ namespace SlydoAddIn.TaskPane
             InitializeComponent();
             this.Deactivated += (s, e) => this.Hide();
             this.ShowInTaskbar = false;
+            this.SizeToContent = SizeToContent.WidthAndHeight;
         }
 
         public void UpdatePreview(SlideResult slide, ImageSource thumbnail)
@@ -52,19 +53,48 @@ namespace SlydoAddIn.TaskPane
 
         public void ShowPreview(System.Windows.Point parentScreenPos, double parentWidth)
         {
-            // 在侧边栏左侧显示预览
-            this.Left = parentScreenPos.X - 274;
-            this.Top = parentScreenPos.Y + 10;
+            // 计算屏幕宽高
+            double screenWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+            double screenHeight = System.Windows.SystemParameters.PrimaryScreenHeight;
+
+            // 预览窗口自身宽高
+            double previewWidth = 274;
+            double previewHeight = 270;
+
+            // 判断侧边栏在屏幕左侧还是右侧
+            // 如果侧边栏左侧空间足够（>= 预览宽度+10px），显示在左侧；否则显示在右侧
+            double left;
+            if (parentScreenPos.X >= previewWidth + 20)
+            {
+                // 左侧空间足够 → 左侧弹出
+                left = parentScreenPos.X - previewWidth - 6;
+            }
+            else
+            {
+                // 左侧不够 → 右侧弹出
+                left = parentScreenPos.X + parentWidth + 6;
+            }
+
+            // 边界夹紧：确保预览窗口不超出屏幕左右边界
+            if (left + previewWidth > screenWidth - 10)
+                left = screenWidth - previewWidth - 10;
+            if (left < 5)
+                left = 5;
+
+            // 垂直居中
+            double top = parentScreenPos.Y - previewHeight / 2 + 50;
+            // 确保不超出屏幕顶部
+            if (top < 10) top = 10;
+            // 确保不超出屏幕底部
+            if (top + previewHeight > screenHeight - 10)
+                top = screenHeight - previewHeight - 10;
+
+            this.Left = left;
+            this.Top = top;
 
             if (!this.IsVisible)
             {
                 this.Show();
-            }
-            else
-            {
-                // 已经显示，只更新位置
-                this.Left = parentScreenPos.X - 274;
-                this.Top = parentScreenPos.Y + 10;
             }
             this.Activate();
             this.Topmost = true;

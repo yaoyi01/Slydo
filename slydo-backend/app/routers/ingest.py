@@ -255,10 +255,30 @@ async def _run_ingest(file_path: Path, task_id: str):
         await handle_created(file_path)
         logger.info(f"[ingest_tasks] 入库完成: {file_path.name}")
 
-        # 入库成功 → 从监控目录删除源文件
+        # 入库成功 → 将源文件移动到 archive 目录（保留原始文件用于导出）
+        archive_dir = file_path.parent.parent / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_dir / file_path.name
         if file_path.exists():
-            file_path.unlink()
-            logger.info(f"[ingest_tasks] 源文件已删除: {file_path.name}")
+            # 如果 archive 中已有同名文件，加时间戳避免覆盖
+            if archive_path.exists():
+                stem = archive_path.stem
+                archive_path = archive_dir / f"{stem}_{int(time.time())}{file_path.suffix}"
+            file_path.rename(archive_path)
+            logger.info(f"[ingest_tasks] 源文件已移至 archive: {archive_path}")
+            # 更新 DB 中 deck.file_path 指向 archive 中的新路径（确保导出功能可用）
+            try:
+                from app.database import async_session_factory
+                from sqlalchemy import text
+                async with async_session_factory() as session:
+                    await session.execute(
+                        text("UPDATE decks SET file_path = :new_path WHERE file_path = :old_path"),
+                        {"new_path": str(archive_path), "old_path": str(file_path)},
+                    )
+                    await session.commit()
+                logger.info(f"[ingest_tasks] DB file_path 已更新为: {archive_path}")
+            except Exception as e:
+                logger.warning(f"[ingest_tasks] 更新 DB file_path 失败: {e}")
 
         # 更新任务状态为成功
         task["status"] = "success"
