@@ -48,8 +48,12 @@ namespace SlydoAddIn.TaskPane
             _wpfControl.LoadOutline(completedTitles, currentTitle);
         }
 
+        private bool _isImporting = false;
+
         private async void ImportSlide(SlideResult slide)
         {
+            if (_isImporting) return;  // 防止重复点击
+            _isImporting = true;
             var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
@@ -84,9 +88,11 @@ namespace SlydoAddIn.TaskPane
                 System.Diagnostics.Debug.WriteLine($"[Slydo] InsertFromFile 完成: {sw.Elapsed.TotalSeconds:F1}s");
                 try { System.IO.File.Delete(tempFile); } catch { }
                 System.Diagnostics.Debug.WriteLine($"[Slydo] 导入完成: 总计{sw.Elapsed.TotalSeconds:F1}s");
+                _isImporting = false;
             }
             catch (Exception ex)
             {
+                _isImporting = false;
                 MessageBox.Show("导入失败:\n" + ex.Message, "Slydo", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
         }
