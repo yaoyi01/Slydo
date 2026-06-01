@@ -89,13 +89,10 @@ def _find_source_file(deck: Deck) -> Path:
 
 def _get_target_media_refs(zin: ZipFile, target_rid: str) -> set[str]:
     """
-    从目标 slide 的 XML 及 rels 文件中，找出其实际引用的 media 文件路径。
-
-    步骤：
-    1. 从 ppt/_rels/presentation.xml.rels 中找到 target_rid 对应的 slide 文件路径
-    2. 读取该 slide 的 .xml.rels 文件，找到所有 media 引用
-    3. 返回这些 media 文件的 ZIP 内路径（如 ppt/media/image1.png）
+    从目标 slide 及其使用的 slideLayout/slideMaster 中，找出实际引用的 media 文件路径。
     """
+    RELS_NS_VAL = "http://schemas.openxmlformats.org/package/2006/relationships"
+
     # 1. 找 target_rid 对应的 slide 文件
     rels_xml = zin.read("ppt/_rels/presentation.xml.rels")
     rels_root = etree.fromstring(rels_xml)
@@ -109,28 +106,41 @@ def _get_target_media_refs(zin: ZipFile, target_rid: str) -> set[str]:
         logger.warning(f"[导出] 找不到 rid={target_rid} 对应的 slide 文件")
         return set()
 
-    # slide_target 是相对路径如 "slides/slide2.xml"
-    slide_rels_path = f"ppt/{slide_target.rsplit('.', 1)[0]}.xml.rels"
-
-    try:
-        slide_rels = zin.read(slide_rels_path)
-    except KeyError:
-        logger.warning(f"[导出] slide rels 文件不存在: {slide_rels_path}")
-        return set()
-
-    # 2. 解析 slide 的 rels，找出所有 media 引用
     media_refs: set[str] = set()
-    slide_rels_root = etree.fromstring(slide_rels)
-    for rel_elem in slide_rels_root.findall(f"{{{RELS_NS_VAL}}}Relationship"):
-        target = rel_elem.get("Target", "")
-        # media 文件通常以 "../media/" 开头
-        if target.startswith("../media/"):
-            # 转换为 ZIP 内路径
-            media_path = f"ppt/{target[3:]}"  # 去掉 "../"
-            media_refs.add(media_path)
-        # 也处理直连 media 的情况
-        elif target.startswith("media/"):
-            media_refs.add(f"ppt/{target}")
+
+    def _collect_media_from_rels(rels_path: str, base_dir: str = "ppt/"):
+        """从 rels 文件中收集所有 ../media/ 引用"""
+        try:
+            rels_data = zin.read(rels_path)
+        except KeyError:
+            return
+        root = etree.fromstring(rels_data)
+        for rel_elem in root.findall(f"{{{RELS_NS_VAL}}}Relationship"):
+            target = rel_elem.get("Target", "")
+            # media 文件
+            if target.startswith("../media/"):
+                media_refs.add(f"ppt/{target[3:]}")
+            elif target.startswith("media/"):
+                media_refs.add(f"ppt/{target}")
+            # 递归查找 slideLayout 和 slideMaster 中的 media
+            if target.startswith("../slideLayouts/"):
+                layout_path = f"ppt/{target[3:]}"
+                layout_rels = layout_path.rsplit(".", 1)[0] + ".xml.rels"
+                _collect_media_from_rels(layout_rels)
+            elif target.startswith("../slideMasters/"):
+                master_path = f"ppt/{target[3:]}"
+                master_rels = master_path.rsplit(".", 1)[0] + ".xml.rels"
+                _collect_media_from_rels(master_rels)
+            elif target.startswith("slideLayouts/"):
+                layout_rels = f"ppt/{target.rsplit('.', 1)[0]}.xml.rels"
+                _collect_media_from_rels(layout_rels)
+            elif target.startswith("slideMasters/"):
+                master_rels = f"ppt/{target.rsplit('.', 1)[0]}.xml.rels"
+                _collect_media_from_rels(master_rels)
+
+    # 从目标 slide 的 rels 开始查找（递归：slide → slideLayout → slideMaster）
+    slide_rels_path = f"ppt/{slide_target.rsplit('.', 1)[0]}.xml.rels"
+    _collect_media_from_rels(slide_rels_path)
 
     return media_refs
 
@@ -162,16 +172,16 @@ def _collect_keep_files(zin: ZipFile, target_rid: str, remove_rids: list[str]) -
     # 2. 找出目标 slide 实际引用的 media
     keep_media = _get_target_media_refs(zin, target_rid)
 
-    # 3. 所有 media 文件路径（除了目标 slide 引用的一律移除）
-    all_media: set[str] = set()
-    for item in zin.infolist():
-        if item.filename.startswith("ppt/media/"):
-            all_media.add(item.filename)
-
-    # 不保留的 media → 加入删除列表
-    for m in all_media:
-        if m not in keep_media:
-            remove_files.add(m)
+    # 3. 所有 media 文件路径——保留全部（避免图片显示问题）
+    # 如果在没有图片显示问题的 PPT 上可以启用清理：
+    # 删除下方注释即可启用 media 清理
+    # all_media: set[str] = set()
+    # for item in zin.infolist():
+    #     if item.filename.startswith("ppt/media/"):
+    #         all_media.add(item.filename)
+    # for m in all_media:
+    #     if m not in keep_media:
+    #         remove_files.add(m)
 
     # 没有 keep_files 概念，用排除法：不删除的 = keep
     return set(), remove_files
