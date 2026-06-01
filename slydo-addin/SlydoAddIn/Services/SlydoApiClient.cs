@@ -108,8 +108,10 @@ namespace SlydoAddIn.Services
                 if (!string.IsNullOrEmpty(searchText))
                     queryParams.Add($"q={Uri.EscapeDataString(searchText)}");
                 var query = "?" + string.Join("&", queryParams);
+                var requestUrl = $"/api/v1/recommend/slides{query}";
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 推荐请求: {_baseUrl}{requestUrl}");
 
-                var response = await GetWithAuthAsync($"/api/v1/recommend/slides{query}");
+                var response = await GetWithAuthAsync(requestUrl);
                 if (!response.IsSuccessStatusCode)
                 {
                     if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
@@ -180,21 +182,35 @@ namespace SlydoAddIn.Services
         }
 
         /// <summary>
-        /// 导出幻灯片到本地文件
+        /// 导出幻灯片到本地文件（使用独立 HttpClient，超时放宽到120秒）
         /// </summary>
         public async Task<string> ExportSlideAsync(string slideId, int targetIndex)
         {
-            var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
-            // 导出文件可能较大（~20MB），在原来 120 秒基础上，用 GetWithAuthAsync 确保 Token 认证正确
-            var response = await GetWithAuthAsync(url);
-            response.EnsureSuccessStatusCode();
-
-            var tempPath = Path.Combine(Path.GetTempPath(), $"slydo_export_{Guid.NewGuid():N}.pptx");
-            using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+            using (var exportClient = new HttpClient())
             {
-                await response.Content.CopyToAsync(fs);
+                exportClient.BaseAddress = new Uri(_baseUrl);
+                exportClient.Timeout = TimeSpan.FromSeconds(120);
+                // 添加 Token
+                if (TokenManager.IsLoggedIn)
+                    exportClient.DefaultRequestHeaders.Authorization =
+                        new AuthenticationHeaderValue("Bearer", TokenManager.AccessToken);
+
+                var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
+                
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出请求: {_baseUrl}{url}");
+                var response = await exportClient.GetAsync(url);
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出响应: HTTP {(int)response.StatusCode}");
+                
+                response.EnsureSuccessStatusCode();
+
+                var tempPath = Path.Combine(Path.GetTempPath(), $"slydo_export_{Guid.NewGuid():N}.pptx");
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write))
+                {
+                    await response.Content.CopyToAsync(fs);
+                }
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出成功: {tempPath}");
+                return tempPath;
             }
-            return tempPath;
         }
 
         /// <summary>

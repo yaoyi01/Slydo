@@ -52,6 +52,8 @@ namespace SlydoAddIn.TaskPane
         {
             try
             {
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导入请求: slide_id={slide.SlideId}, title={slide.DeckName}");
+                
                 var tempFile = await _apiClient.ExportSlideAsync(slide.SlideId, -1);
 
                 // 记录导入行为
