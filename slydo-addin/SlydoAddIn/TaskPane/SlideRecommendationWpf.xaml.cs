@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -365,6 +366,38 @@ namespace SlydoAddIn.TaskPane
             // 离线缓存标识
             if (response._isCached)
                 StatusText.Text += " 💾 离线缓存";
+
+            // 分批加载缩略图：每批5个，间隔100ms，避免并发请求过多导致服务端过载
+            _ = LoadThumbnailsBatchedAsync(results);
+        }
+
+        /// <summary>
+        /// 分批加载缩略图，每批5个
+        /// </summary>
+        private async Task LoadThumbnailsBatchedAsync(List<SlideResult> results, int batchSize = 5)
+        {
+            for (int i = 0; i < results.Count; i += batchSize)
+            {
+                var batch = results.Skip(i).Take(batchSize).ToList();
+                var tasks = new List<Task>();
+                foreach (var r in batch)
+                {
+                    // 找到对应的卡片并加载缩略图
+                    foreach (var item in CardList.Items)
+                    {
+                        if (item is SlideCardWpf sc && sc.SlideData?.SlideId == r.SlideId)
+                        {
+                            tasks.Add(sc.LoadThumbnailAsync());
+                            break;
+                        }
+                    }
+                }
+                await Task.WhenAll(tasks);
+                // 每批之间间隔50ms，给UI和服务端喘息时间
+                if (i + batchSize < results.Count)
+                    await Task.Delay(50);
+            }
+        }
         }
 
         private void SetErrorState(string message)

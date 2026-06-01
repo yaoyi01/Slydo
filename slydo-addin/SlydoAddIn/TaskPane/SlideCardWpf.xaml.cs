@@ -49,10 +49,10 @@ namespace SlydoAddIn.TaskPane
                 };
             }
 
-            LoadThumbnailAsync();
+            // 构造函数中不再自动加载缩略图，由外部分批调度
         }
 
-        private async void LoadThumbnailAsync()
+        public async Task LoadThumbnailAsync()
         {
             try
             {
