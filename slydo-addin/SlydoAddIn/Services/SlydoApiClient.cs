@@ -198,8 +198,10 @@ namespace SlydoAddIn.Services
                 var url = $"/api/v1/recommend/export?slide_id={Uri.EscapeDataString(slideId)}&target_index={targetIndex}";
                 
                 System.Diagnostics.Debug.WriteLine($"[Slydo] 导出请求: {_baseUrl}{url}");
+                var sw = System.Diagnostics.Stopwatch.StartNew();
                 var response = await exportClient.GetAsync(url);
-                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出响应: HTTP {(int)response.StatusCode}");
+                sw.Stop();
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出响应: HTTP {(int)response.StatusCode} ({sw.Elapsed.TotalSeconds:F1}s)");
                 
                 response.EnsureSuccessStatusCode();
 
@@ -208,7 +210,7 @@ namespace SlydoAddIn.Services
                 {
                     await response.Content.CopyToAsync(fs);
                 }
-                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出成功: {tempPath}");
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出成功: {tempPath} ({new FileInfo(tempPath).Length / 1024}KB, 总计{sw.Elapsed.TotalSeconds:F1}s)");
                 return tempPath;
             }
         }

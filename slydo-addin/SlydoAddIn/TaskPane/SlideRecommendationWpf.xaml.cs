@@ -398,7 +398,6 @@ namespace SlydoAddIn.TaskPane
                     await Task.Delay(50);
             }
         }
-        }
 
         private void SetErrorState(string message)
         {

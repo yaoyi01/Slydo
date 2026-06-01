@@ -50,11 +50,13 @@ namespace SlydoAddIn.TaskPane
 
         private async void ImportSlide(SlideResult slide)
         {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             try
             {
                 System.Diagnostics.Debug.WriteLine($"[Slydo] 导入请求: slide_id={slide.SlideId}, title={slide.DeckName}");
                 
                 var tempFile = await _apiClient.ExportSlideAsync(slide.SlideId, -1);
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导出下载完成: {sw.Elapsed.TotalSeconds:F1}s");
 
                 // 记录导入行为
                 _apiClient.LogUsageAsync(slide.SlideId, "import");
