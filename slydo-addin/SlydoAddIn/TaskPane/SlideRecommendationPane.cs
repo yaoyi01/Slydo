@@ -79,8 +79,11 @@ namespace SlydoAddIn.TaskPane
                 }
                 catch { }
 
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 开始 InsertFromFile: {sw.Elapsed.TotalSeconds:F1}s");
                 activePres.Slides.InsertFromFile(tempFile, targetIndex, 1, 1);
+                System.Diagnostics.Debug.WriteLine($"[Slydo] InsertFromFile 完成: {sw.Elapsed.TotalSeconds:F1}s");
                 try { System.IO.File.Delete(tempFile); } catch { }
+                System.Diagnostics.Debug.WriteLine($"[Slydo] 导入完成: 总计{sw.Elapsed.TotalSeconds:F1}s");
             }
             catch (Exception ex)
             {
