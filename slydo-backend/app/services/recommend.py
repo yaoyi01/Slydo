@@ -124,6 +124,12 @@ async def semantic_search(query: str, limit: int = SEMANTIC_LIMIT) -> list[dict[
                     key = f"{c['deck_id']}_{c['slide_index']}"
                     if key in uuid_map:
                         c["slide_id"] = uuid_map[key]
+                    else:
+                        # UUID 反查失败 → 丢弃这条 Qdrant 记录（PG 中无对应数据）
+                        c["_drop"] = True
+            
+            # 过滤掉 UUID 反查失败的记录
+            candidates = [c for c in candidates if not c.get("_drop")]
         except Exception as e:
             logger.warning(f"[推荐] UUID 反查失败: {e}")
 
