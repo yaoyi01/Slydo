@@ -34,6 +34,64 @@ SLD_LST_TAG = f"{{{NS_PRESENTATION}}}sldIdLst"
 RID_ATTR = f"{{{NS_RELS}}}id"
 
 
+def _find_source_file(deck: Deck) -> Path:
+    """
+    查找原始 PPT 文件路径。
+    优先使用 deck.file_path，如果文件不存在则尝试在 archive 目录中按文件名查找。
+    
+    archive 目录规则：~/.slydo/archive/（与 watch/ 同级）
+    """
+    src_path = Path(deck.file_path) if deck.file_path else None
+    
+    if src_path and src_path.exists():
+        return src_path
+    
+    # file_path 不存在 → 从 archive 目录查找
+    watch_dir = Path.home() / ".slydo" / "watch"
+    archive_dir = Path.home() / ".slydo" / "archive"
+    
+    def _find_in_dir(dir_path: Path, src_path: Path | None) -> Path | None:
+        """在指定目录中按名称查找文件，支持精确匹配和模糊匹配"""
+        if not dir_path or not dir_path.exists():
+            return None
+        if src_path:
+            # 1. 精确文件名匹配
+            exact = dir_path / src_path.name
+            if exact.exists():
+                return exact
+            # 2. 模糊匹配：用文件名主体部分（去掉时间戳前缀，匹配标题部分）
+            stem = src_path.stem
+            # 文件名格式一般如 "1780233372_标题.pptx"，提取 "_" 后的标题部分
+            title_part = stem.split("_", 1)[-1] if "_" in stem else stem
+            for f in sorted(dir_path.iterdir(), reverse=True):
+                if f.suffix not in (".ppt", ".pptx"):
+                    continue
+                # 精确 stem 匹配
+                if f.stem == stem:
+                    return f
+                # 标题部分匹配（用于前缀不同的情况）
+                if title_part and title_part in f.stem:
+                    logger.info(f"[导出] 在 {dir_path.name} 模糊匹配: {f.name}（基于标题部分: {title_part}）")
+                    return f
+        return None
+    
+    # 优先查找 archive
+    found = _find_in_dir(archive_dir, src_path)
+    if found:
+        return found
+    
+    # 再查找 watch
+    found = _find_in_dir(watch_dir, src_path)
+    if found:
+        return found
+    
+    # 彻底找不到
+    if src_path:
+        raise ValueError(f"原始文件不存在: {src_path}（已检查 archive 目录）")
+    else:
+        raise ValueError(f"Deck {deck.id} 无原始文件路径，无法导出")
+
+
 async def export_single_slide(slide_id: str) -> io.BytesIO:
     """
     从原始 PPT 中提取单页幻灯片并返回 PPTX 文件流。
@@ -71,16 +129,12 @@ async def export_single_slide(slide_id: str) -> io.BytesIO:
         raise ValueError(f"Slide {slide_id} 不存在")
 
     deck: Deck = slide.deck
-    if not deck.file_path:
-        raise ValueError(f"Deck {deck.id} 无原始文件路径，无法导出")
 
-    src_path = Path(deck.file_path)
-    if not src_path.exists():
-        raise ValueError(f"原始文件不存在: {src_path}")
-
+    # 2. 查找源文件（支持 file_path / archive 自动 fallback）
+    src_path = _find_source_file(deck)
     slide_index = slide.slide_index
 
-    # 2. ZIP-level 单页提取
+    # 3. ZIP-level 单页提取
     buf = _extract_single_slide_pptx(str(src_path), slide_index)
 
     logger.info(

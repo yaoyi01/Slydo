@@ -49,12 +49,13 @@ namespace SlydoAddIn.TaskPane
 
             // 强制设置最小尺寸
             this.MinWidth = 250;
+            this.MinHeight = 200;
             this.Loaded += (s, e) =>
             {
                 if (this.ActualWidth < 250)
-                    this.Width = 250;
+                    this.MinWidth = 250;
                 if (this.ActualHeight < 200)
-                    this.Height = 200;
+                    this.MinHeight = 200;
             };
         }
 
