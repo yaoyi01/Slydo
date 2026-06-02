@@ -5,7 +5,7 @@
 ;   3. 编译生成 SlydoSetup.exe
 
 #define MyAppName "Slydo 知识库助手"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "Slydo"
 #define MyAppURL "http://115.191.10.205"
 #define MyAppExeName "setup.exe"

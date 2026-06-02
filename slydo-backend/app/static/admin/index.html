@@ -121,10 +121,10 @@ tr:hover td { background: #f0f5ff; }
         <div id="upload-status" class="info-msg"></div>
       </div>
       <div class="card">
-        <h2>最近上传记录</h2>
+        <h2>入库历史</h2>
         <table>
-          <thead><tr><th>文件名</th><th>大小</th><th>入库状态</th><th>操作</th></tr></thead>
-          <tbody id="watch-files"></tbody>
+          <thead><tr><th>文件名</th><th>上传时间</th><th>状态</th><th>详情</th></tr></thead>
+          <tbody id="upload-history"></tbody>
         </table>
       </div>
     </div>
@@ -334,7 +334,7 @@ function showApp(user) {
     tab.style.display = (isAdmin || perms.includes(perm)) ? '' : 'none';
   });
   if (isAdmin) loadUsers();
-  loadWatchFiles(); loadDecks();
+  loadUploadHistory(); loadDecks();
 }
 
 async function login() {
@@ -534,24 +534,37 @@ function _autoRemoveTask(taskId, delayMs) {
 }
 
 function _sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
-async function loadWatchFiles() {
+async function loadUploadHistory() {
   try {
-    const resp = await fetch(getApiBase() + '/api/ingest/files', { headers: { 'Authorization': `Bearer ${token}` } });
+    const resp = await fetch(getApiBase() + '/api/ingest/tasks', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
     if (!resp.ok) return;
     const data = await resp.json();
-    const tbody = document.getElementById('watch-files');
-    if (!data.files || data.files.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">暂无文件</td></tr>';
+    const tbody = document.getElementById('upload-history');
+    if (!data.tasks || data.tasks.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#999">暂无记录</td></tr>';
       return;
     }
-    tbody.innerHTML = data.files.map(f => `
-      <tr>
-        <td>${esc(f.name)}</td>
-        <td>${(f.size/1024).toFixed(1)} KB</td>
-        <td><span class="badge badge-active">待入库</span></td>
-        <td><button class="btn btn-sm btn-danger" onclick="deleteWatchFile('${esc(f.name)}')">删除</button></td>
-      </tr>
-    `).join('');
+    tbody.innerHTML = data.tasks.map(t => {
+      const statusMap = {
+        uploading: '<span class="badge badge-active">上传中</span>',
+        uploaded: '<span class="badge badge-active">待入库</span>',
+        ingesting: '<span style="color:#1890ff">⏳ 入库中</span>',
+        success: '<span style="color:#52c41a">✅ 完成</span>',
+        failed: '<span style="color:#ff4d4f">❌ 失败</span>',
+      };
+      const time = t.created_at ? new Date(t.created_at).toLocaleString('zh-CN', {
+        month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+      }) : '-';
+      const detail = t.status === 'failed' ? (t.error || t.detail).substring(0, 40) : t.detail;
+      return `<tr>
+        <td>${esc(t.original_name || t.filename)}</td>
+        <td style="color:#999;font-size:12px">${time}</td>
+        <td>${statusMap[t.status] || t.status}</td>
+        <td style="font-size:12px;color:#999;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(detail || '')}</td>
+      </tr>`;
+    }).join('');
   } catch(e) {}
 }
 
