@@ -144,6 +144,15 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
             s["visual_desc"] = ""
             s["semantic_tags"] = []
 
+    # ── Phase 2.5: 过滤无用页面 ──────────────────────
+    # 去除封面、目录、结论页，这些对用户推荐没有价值
+    skip_roles = {"cover", "toc", "conclusion", "appendix", "transition"}
+    before = len(slides)
+    slides = [s for s in slides if s.get("semantic_role", "") not in skip_roles]
+    filtered = before - len(slides)
+    if filtered > 0:
+        logger.info(f"  Phase2.5 [过滤] 已去除 {filtered} 个无用页面（封面/目录/结论/附录/转场），保留 {len(slides)} 页")
+
     # dry-run 到此结束
     if dry_run:
         for s in slides:
