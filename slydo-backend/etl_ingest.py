@@ -133,7 +133,7 @@ async def ingest_pptx(pptx_path: str, *, dry_run: bool = False, skip_vision: boo
         from app.services.etl.phase2_vision import llm_extract_meaning_batch
         counter = TokenCounter(model_name=settings.ollama_vision_model)
         slides = await llm_extract_meaning_batch(
-            slides, thumbnail_dir=thumb_temp_dir, max_concurrency=1, counter=counter,
+            slides, thumbnail_dir=thumb_temp_dir, max_concurrency=3, counter=counter,
         )
         logger.info(counter.print_report())
     else:
