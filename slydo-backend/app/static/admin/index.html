@@ -308,7 +308,8 @@ async function api(method, path, body) {
   if (!(body instanceof FormData)) headers['Content-Type'] = 'application/json';
   if (token) headers['Authorization'] = `Bearer ${token}`;
   const resp = await fetch(getApiBase() + path, { method, headers, body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined });
-  if (resp.status === 401 || resp.status === 403) { token='';localStorage.removeItem('slydo_token');showLogin();throw new Error('登录已过期'); }
+  if (resp.status === 401) { token='';localStorage.removeItem('slydo_token');showLogin();throw new Error('登录已过期'); }
+  if (resp.status === 403) { throw new Error('权限不足'); }
   if (!resp.ok) { const err = await resp.json().catch(()=>({detail:resp.statusText})); throw new Error(err.detail||'请求失败'); }
   return resp.json();
 }
@@ -927,10 +928,9 @@ async function saveConfig() {
 }
 
 // ═══ 启动 ═══
-(async function() {
-  if (token) {
-    showAdmin();
-    // 同步用户权限信息，控制 Tab 显示
+  (async function() {
+    if (token) {
+      // 同步用户权限信息，控制 Tab 显示
     try {
       const me = await api('GET', '/api/auth/me');
       if (me.permissions) {
